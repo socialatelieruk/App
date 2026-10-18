@@ -39,18 +39,27 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          APP_URL: ${{ secrets.APP_URL }}
         run: |
           args=()
-          for name in WEBHOOK_SECRET FIREBASE_SERVICE_ACCOUNT APNS_KEY_P8 APNS_KEY_ID APPLE_TEAM_ID GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+          for name in WEBHOOK_SECRET FIREBASE_SERVICE_ACCOUNT APNS_KEY_P8 APNS_KEY_ID APPLE_TEAM_ID GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET \
+            STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET RESEND_API_KEY EMAIL_FROM ADMIN_EMAIL APP_URL; do
             if [ -n "${!name}" ]; then args+=("$name=${!name}"); fi
           done
           if [ ${#args[@]} -gt 0 ]; then
             supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" "${args[@]}"
           fi
 
-      # --no-verify-jwt: each function checks its own caller (webhook secret, Google's redirect, or the user's session).
+      # --no-verify-jwt: each function checks its own caller (webhook secret, Stripe's
+      # signature, Google's redirect, or the user's session).
       - name: Deploy functions
         if: steps.check.outputs.ready == 'true'
         run: |
-          supabase functions deploy on-application-change --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
-          supabase functions deploy google-calendar --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          for fn in on-application-change google-calendar stripe-checkout stripe-webhook email-events; do
+            supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          done

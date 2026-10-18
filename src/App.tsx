@@ -15,10 +15,13 @@ import CollabForm from './screens/admin/CollabForm'
 import BrandForm from './screens/admin/BrandForm'
 import BrandPage from './screens/admin/BrandPage'
 import Brands from './screens/admin/Brands'
+import BriefReview from './screens/admin/BriefReview'
+import PackagesAdmin from './screens/admin/PackagesAdmin'
 import { type QueueKind, useAdminData } from './screens/admin/data'
 import Influencers from './screens/admin/Influencers'
 import Queue from './screens/admin/Queue'
 import Today from './screens/admin/Today'
+import BrandApp from './screens/brand/BrandApp'
 import type { Application, Brand, Collab, Profile, ProfileStatus } from './types'
 import { ErrorText, Icon, Spinner, type IconName } from './ui'
 
@@ -57,6 +60,8 @@ function SignedIn() {
       </div>
     )
   if (!profile) return <Spinner />
+
+  if (profile.role === 'brand') return <BrandApp />
 
   if (profile.role === 'influencer' && !profile.full_name) {
     return (
@@ -202,6 +207,8 @@ function AdminApp({ profile, onProfile }: { profile: Profile; onProfile: (p: Pro
   const [newCollabBrand, setNewCollabBrand] = useState<string | undefined>(undefined)
   const [brandId, setBrandId] = useState<string | null>(null)
   const [editingBrand, setEditingBrand] = useState<Brand | 'new' | null>(null)
+  const [reviewingBriefs, setReviewingBriefs] = useState(false)
+  const [editingPackages, setEditingPackages] = useState(false)
 
   // Fresh numbers whenever the admin switches tab.
   const changeTab = (t: AdminTab) => {
@@ -228,11 +235,16 @@ function AdminApp({ profile, onProfile }: { profile: Profile; onProfile: (p: Pro
             onQueue={setQueueKind}
             onOpenCollab={setViewing}
             onMoney={() => changeTab('brands')}
+            onBrandSignups={() => {
+              changeTab('brands')
+              setTimeout(() => document.getElementById('brand-signups')?.scrollIntoView({ behavior: 'smooth' }), 300)
+            }}
+            onBriefs={() => setReviewingBriefs(true)}
           />
         ) : tab === 'collabs' ? (
           <AdminCollabs collabs={data.collabs} brands={data.brands} finances={data.finances} onOpen={setViewing} onNew={() => setEditing('new')} />
         ) : tab === 'brands' ? (
-          <Brands data={data} onOpen={(b) => setBrandId(b.id)} onNew={() => setEditingBrand('new')} />
+          <Brands data={data} onOpen={(b) => setBrandId(b.id)} onNew={() => setEditingBrand('new')} onPackages={() => setEditingPackages(true)} onChanged={reload} />
         ) : tab === 'influencers' ? (
           <Influencers key={influencerTab} initialTab={influencerTab} onChanged={reload} />
         ) : (
@@ -252,7 +264,13 @@ function AdminApp({ profile, onProfile }: { profile: Profile; onProfile: (p: Pro
         onChange={(t) => changeTab(t as AdminTab)}
       />
 
-      {data && queueKind && <Queue kind={queueKind} applications={data.applications} onOpenCollab={setViewing} onClose={() => setQueueKind(null)} />}
+      {data && queueKind && (
+        <Queue kind={queueKind} applications={data.applications} shortlist={data.shortlist} onOpenCollab={setViewing} onClose={() => setQueueKind(null)} onChanged={reload} />
+      )}
+      {data && reviewingBriefs && (
+        <BriefReview briefs={data.briefs} brands={data.brands} accounts={data.brandAccounts} packages={data.packages} onClose={() => setReviewingBriefs(false)} onChanged={reload} />
+      )}
+      {data && editingPackages && <PackagesAdmin packages={data.packages} onClose={() => setEditingPackages(false)} onChanged={reload} />}
       {data && brand && (
         <BrandPage
           brand={brand}
@@ -268,7 +286,13 @@ function AdminApp({ profile, onProfile }: { profile: Profile; onProfile: (p: Pro
         />
       )}
       {viewing && !editing && (
-        <Applicants collab={current(viewing)!} onClose={() => setViewing(null)} onEdit={() => setEditing(current(viewing))} onChanged={reload} />
+        <Applicants
+          collab={current(viewing)!}
+          brandHasPortal={!!data?.brandAccounts.some((a) => a.status === 'approved' && a.brand_id && a.brand_id === current(viewing)!.brand_id)}
+          onClose={() => setViewing(null)}
+          onEdit={() => setEditing(current(viewing))}
+          onChanged={reload}
+        />
       )}
       {data && editing && (
         <CollabForm

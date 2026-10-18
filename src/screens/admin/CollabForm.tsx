@@ -21,6 +21,7 @@ const blank: CollabInput = {
   title: '',
   brand: '',
   brand_id: null,
+  package_id: null,
   description: '',
   category: 'Food & Drink',
   type: 'Booking',

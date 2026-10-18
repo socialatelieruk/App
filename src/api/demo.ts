@@ -1,10 +1,28 @@
 import { deliveryStatus } from '../delivery'
-import type { Application, Brand, BrandReport, Collab, CollabFinance, DeliveryStats, PaymentStatus, Profile, RetainerPayment } from '../types'
+import { reliability } from '../delivery'
+import type {
+  Application,
+  Brand,
+  BrandAccount,
+  BrandCampaign,
+  BrandPayment,
+  BrandReport,
+  Brief,
+  Collab,
+  CollabFinance,
+  DeliveryStats,
+  Package,
+  PaymentStatus,
+  Profile,
+  RetainerPayment,
+  ShortlistCard,
+  ShortlistEntry,
+} from '../types'
 import type { Api } from './types'
 
 // Demo mode keeps everything in this browser/device so the app can be tried
 // before a Supabase project is connected.
-const KEY = 'demo.v5'
+const KEY = 'demo.v6'
 
 interface DemoState {
   userId: string | null
@@ -15,6 +33,11 @@ interface DemoState {
   brands: Brand[]
   finances: Record<string, CollabFinance> // by collab id
   retainerPayments: RetainerPayment[]
+  brandAccounts: BrandAccount[]
+  packages: Package[]
+  brandPayments: BrandPayment[]
+  briefs: Brief[]
+  shortlist: ShortlistEntry[]
 }
 
 const now = () => new Date().toISOString()
@@ -63,6 +86,7 @@ function seed(): DemoState {
     event_date: null,
     apply_by: inDays(14),
     content_due_days: 7,
+    package_id: null,
     status: 'open',
     created_at: now(),
     ...c,
@@ -113,7 +137,7 @@ function seed(): DemoState {
     collab({ id: 'c5', title: 'Sound bath & spa day', brand_id: 'b7', category: 'Wellness', type: 'Booking', location: 'Altrincham', description: 'Full spa access plus a 45-minute group sound bath.', offer: 'Day pass worth £95', deliverables: '1 Reel + 3 stories', min_followers: 7500, spots: 6 }),
     collab({ id: 'c6', title: 'Omakase tasting menu', brand_id: 'b1', category: 'Food & Drink', type: 'Event', location: 'Spinningfields', description: 'Twelve-course omakase evening at the chef’s counter.', offer: 'Omakase for one with sake pairing', deliverables: '1 Reel + 3 stories tagging @sayonaramcr', min_followers: 10000, spots: 3, event_date: inDays(-14), apply_by: inDays(-20), status: 'closed' }),
     collab({ id: 'c7', title: 'Courtyard lunch', brand_id: 'b2', category: 'Food & Drink', type: 'Booking', location: 'Ancoats', description: 'Long lunch in the courtyard garden.', offer: 'Lunch for two (up to £120)', deliverables: '1 Reel or TikTok + 2 stories tagging @jardim.mcr', min_followers: 8000, spots: 3, apply_by: inDays(-10), status: 'closed' }),
-    collab({ id: 'c8', title: 'Sunday roast for two', brand_id: 'b2', category: 'Food & Drink', type: 'Booking', location: 'Ancoats', description: 'Our Sunday roast with all the trimmings.', offer: 'Roast for two with a bottle of wine', deliverables: '1 Reel + 2 stories tagging @jardim.mcr', min_followers: 8000, spots: 4 }),
+    collab({ id: 'c8', package_id: 'pk1', title: 'Sunday roast for two', brand_id: 'b2', category: 'Food & Drink', type: 'Booking', location: 'Ancoats', description: 'Our Sunday roast with all the trimmings.', offer: 'Roast for two with a bottle of wine', deliverables: '1 Reel + 2 stories tagging @jardim.mcr', min_followers: 8000, spots: 4 }),
   ]
 
   return {
@@ -125,6 +149,9 @@ function seed(): DemoState {
       profile({ id: 'demo-3', full_name: 'Priya Shah', instagram: 'priyaglow', tiktok: 'priyaglow', followers: 8900, status: 'pending', city: 'Salford', bio: 'Skincare reviews and GRWM.' }),
       profile({ id: 'demo-4', full_name: 'Amara Okafor', instagram: 'amaraeatsmcr', followers: 18300, bio: 'Restaurants and rooftops.' }),
       profile({ id: 'demo-5', full_name: 'Leo Martin', tiktok: 'leomartin', followers: 33100, city: 'Stockport', bio: 'Food TikToks, mostly ramen.' }),
+      profile({ id: 'demo-brand', full_name: 'Sofia Almeida', email: 'sofia@jardim.example', role: 'brand' }),
+      profile({ id: 'demo-brand-2', full_name: 'Ollie Grant', email: 'ollie@saltandsignal.example', role: 'brand', status: 'pending' }),
+      profile({ id: 'demo-brand-3', full_name: 'Imogen Hale', email: 'imogen@willowrooms.example', role: 'brand', status: 'pending' }),
     ],
     collabs,
     applications: [
@@ -132,7 +159,11 @@ function seed(): DemoState {
       // Waiting for a decision
       app({ id: 'a2', collab_id: 'c1', user_id: 'demo-2', message: 'Fire cooking is my kind of content. Happy to do a Reel.', preferred_date: inDays(5) }),
       app({ id: 'a9', collab_id: 'c2', user_id: 'demo-4', message: 'I’d film a full GRWM before and after.', preferred_date: inDays(8) }),
-      app({ id: 'a14', collab_id: 'c8', user_id: 'demo-5', message: 'Roast TikToks do numbers for me.', preferred_date: inDays(7) }),
+      app({ id: 'a14', collab_id: 'c8', user_id: 'demo-5', message: 'Roast TikToks do numbers for me.', preferred_date: inDays(7), status: 'declined' }),
+      // Sunday roast (from Jardim's brief): with the brand for a decision, plus their replies
+      app({ id: 'a15', collab_id: 'c8', user_id: 'demo-influencer', message: 'Sunday roasts are my most-saved Reels.', preferred_date: inDays(8) }),
+      app({ id: 'a16', collab_id: 'c8', user_id: 'demo-4', message: 'Would bring my partner and film a full Sunday.', preferred_date: inDays(15) }),
+      app({ id: 'a17', collab_id: 'c8', user_id: 'demo-2', message: 'Happy to shoot a roast Reel.', preferred_date: inDays(8), status: 'accepted', seen: false, content_due: inDays(15) }),
       // Booked this week
       app({ id: 'a12', collab_id: 'c2', user_id: 'demo-2', status: 'accepted', scheduled_start: at(1, 15), scheduled_end: at(1, 16), content_due: inDays(8) }),
       app({ id: 'a10', collab_id: 'c5', user_id: 'demo-4', status: 'accepted', scheduled_start: at(2, 11), scheduled_end: at(2, 15), content_due: inDays(9) }),
@@ -153,13 +184,45 @@ function seed(): DemoState {
       c1: { collab_id: 'c1', fee: 350, payment_status: 'invoiced', invoiced_on: inDays(-12), paid_on: null },
       c3: { collab_id: 'c3', fee: 500, payment_status: 'invoiced', invoiced_on: inDays(-41), paid_on: null },
       c7: { collab_id: 'c7', fee: 350, payment_status: 'paid', invoiced_on: inDays(-8), paid_on: inDays(0) },
-      c8: { collab_id: 'c8', fee: 350, payment_status: 'unpaid', invoiced_on: null, paid_on: null },
     },
     retainerPayments: [
       { id: 'r1', brand_id: 'b1', month: monthsAgo(3), amount: 350, status: 'paid', invoiced_on: inDays(-95), paid_on: inDays(-80) },
       { id: 'r2', brand_id: 'b1', month: monthsAgo(2), amount: 350, status: 'paid', invoiced_on: inDays(-64), paid_on: inDays(-50) },
       { id: 'r3', brand_id: 'b1', month: monthsAgo(1), amount: 350, status: 'invoiced', invoiced_on: inDays(-35), paid_on: null },
       { id: 'r4', brand_id: 'b7', month: monthsAgo(1), amount: 250, status: 'paid', invoiced_on: inDays(-20), paid_on: inDays(0) },
+    ],
+    brandAccounts: [
+      { user_id: 'demo-brand', business_name: 'Jardim', contact_name: 'Sofia Almeida', email: 'sofia@jardim.example', phone: '0161 496 0277', instagram: 'jardim.mcr', website: 'jardim.example', area: 'Ancoats, Manchester', category: 'Food & Drink', status: 'approved', brand_id: 'b2', created_at: at(-40, 10) },
+      { user_id: 'demo-brand-2', business_name: 'Salt & Signal Coffee', contact_name: 'Ollie Grant', email: 'ollie@saltandsignal.example', phone: '01925 496 0812', instagram: 'saltandsignal', website: 'saltandsignal.example', area: 'Warrington', category: 'Food & Drink', status: 'pending', brand_id: null, created_at: at(-1, 9) },
+      { user_id: 'demo-brand-3', business_name: 'The Willow Rooms', contact_name: 'Imogen Hale', email: 'imogen@willowrooms.example', phone: '0161 496 0925', instagram: 'thewillowrooms', website: 'willowrooms.example', area: 'Altrincham', category: 'Hotels', status: 'pending', brand_id: null, created_at: at(0, 8) },
+    ],
+    packages: [
+      { id: 'pk1', name: 'Starter', description: '10 vetted creators for one campaign, with a live brand report.', creators: 10, price: 350, billing: 'one_off', active: true, sort: 1 },
+      { id: 'pk2', name: 'Monthly', description: '4 creators every month, with a fresh brief each month.', creators: 4, price: 350, billing: 'monthly', active: true, sort: 2 },
+    ],
+    brandPayments: [
+      { id: 'bp1', brand_id: 'b2', package_id: 'pk1', kind: 'one_off', amount: 350, status: 'paid', period_start: null, created_at: at(-21, 10), paid_at: at(-21, 10) },
+      { id: 'bp2', brand_id: 'b2', package_id: 'pk1', kind: 'one_off', amount: 350, status: 'paid', period_start: null, created_at: at(-2, 16), paid_at: at(-2, 16) },
+    ],
+    briefs: [
+      {
+        id: 'br1', brand_id: 'b2', payment_id: 'bp1', package_id: 'pk1', title: 'Sunday roast for two', offer: 'Roast for two with a bottle of wine',
+        deliverables: '1 Reel + 2 stories tagging @jardim.mcr', location: 'Ancoats', city: 'Manchester', preferred_dates: 'Sundays, 12–4pm', type: 'Booking',
+        min_followers: 8000, creator_type: 'Food creators with a Manchester audience', image_url: '', status: 'approved', admin_note: '', collab_id: 'c8',
+        created_at: at(-20, 11), updated_at: at(-18, 9),
+      },
+      {
+        id: 'br2', brand_id: 'b2', payment_id: 'bp2', package_id: 'pk1', title: 'Bottomless brunch launch', offer: 'Bottomless brunch for two (90 minutes)',
+        deliverables: '1 Reel + 3 stories on the day, tagging @jardim.mcr', location: 'Ancoats', city: 'Manchester', preferred_dates: 'Saturdays in November, 11am–2pm', type: 'Booking',
+        min_followers: 10000, creator_type: 'Lifestyle and food creators, 25–35 audience', image_url: '', status: 'submitted', admin_note: '', collab_id: null,
+        created_at: at(-1, 15), updated_at: at(-1, 15),
+      },
+    ],
+    shortlist: [
+      { application_id: 'a15', collab_id: 'c8', brand_id: 'b2', sent_at: at(-1, 10), decision: null, note: '', decided_at: null, handled: false },
+      { application_id: 'a16', collab_id: 'c8', brand_id: 'b2', sent_at: at(-1, 10), decision: null, note: '', decided_at: null, handled: false },
+      { application_id: 'a17', collab_id: 'c8', brand_id: 'b2', sent_at: at(-3, 10), decision: 'approved', note: 'Great fit for our Sunday crowd.', decided_at: at(-1, 18), handled: false },
+      { application_id: 'a14', collab_id: 'c8', brand_id: 'b2', sent_at: at(-3, 10), decision: 'declined', note: 'We’d like more Instagram-led creators.', decided_at: at(-1, 18), handled: false },
     ],
   }
 }
@@ -208,6 +271,35 @@ export function createDemoApi(): Api {
     throw new Error('Demo mode: use the demo buttons. Connect Supabase to enable real accounts.')
   }
 
+
+  // The brand report for a collab, as collab_report() builds it.
+  const buildReport = (collabId: string): BrandReport | null => {
+    const c = state.collabs.find((x) => x.id === collabId)
+    if (!c) return null
+    const creators = state.applications
+      .filter((a) => a.collab_id === c.id && a.status === 'accepted' && a.attendance !== 'no_show')
+      .map((a) => {
+        const p = state.profiles.find((x) => x.id === a.user_id)!
+        return { name: p.full_name, instagram: p.instagram, tiktok: p.tiktok, followers: p.followers, city: p.city, visited: a.scheduled_start, content_due: a.content_due, post_links: a.post_links, posted_at: a.posted_at }
+      })
+      .sort((x, y) => (x.posted_at ?? '9').localeCompare(y.posted_at ?? '9') || x.name.localeCompare(y.name))
+    const { title, brand, type, category, city, location, image_url, event_date, deliverables } = c
+    return { collab: { title, brand, type, category, city, location, image_url, event_date, deliverables }, creators, generated_at: now() }
+  }
+  const myAccount = () => state.brandAccounts.find((a) => a.user_id === state.userId) ?? null
+  const myBrandId = () => {
+    const acc = myAccount()
+    return acc?.status === 'approved' ? acc.brand_id : null
+  }
+  const isAdmin = () => me().role === 'admin'
+  const reliabilityLabel = (userId: string) => {
+    const stats: DeliveryStats = { on_time: 0, late: 0, overdue: 0, no_shows: 0, upcoming: 0 }
+    const key = { 'no-show': 'no_shows', posted: 'on_time', 'posted-late': 'late', overdue: 'overdue', due: 'upcoming' } as const
+    for (const a of state.applications.filter((x) => x.user_id === userId && x.status === 'accepted')) stats[key[deliveryStatus(a)]]++
+    const tier = reliability(stats).tier
+    return { new: 'New to The Social Atelier', excellent: 'Excellent track record', good: 'Reliable', 'at-risk': 'Building their record' }[tier]
+  }
+
   return {
     mode: 'demo',
     getUserId: async () => state.userId,
@@ -222,7 +314,7 @@ export function createDemoApi(): Api {
       setUser(null)
     },
     async demoSignIn(role) {
-      setUser(role === 'admin' ? 'demo-admin' : 'demo-influencer')
+      setUser(role === 'admin' ? 'demo-admin' : role === 'brand' ? 'demo-brand' : 'demo-influencer')
     },
 
     async getMyProfile() {
@@ -391,6 +483,172 @@ export function createDemoApi(): Api {
       persist()
     },
 
+    async getMyBrandAccount() {
+      await tick()
+      return myAccount()
+    },
+    async registerBrand(input) {
+      const profile = me()
+      if (profile.role !== 'brand') throw new Error('Only brand accounts can do this.')
+      if (myAccount()) throw new Error('Your business details have already been sent.')
+      state.brandAccounts.push({ ...input, instagram: input.instagram.replace(/^@/, ''), user_id: profile.id, email: profile.email, status: 'pending', brand_id: null, created_at: now() })
+      state.profiles = state.profiles.map((p) => (p.id === profile.id ? { ...p, full_name: input.contact_name } : p))
+      persist()
+    },
+    async listPackages() {
+      await tick()
+      return state.packages.filter((p) => isAdmin() || p.active).sort((a, b) => a.sort - b.sort)
+    },
+    async startCheckout(packageId) {
+      // Demo mode stands in for Stripe: the payment succeeds straight away.
+      const brandId = myBrandId()
+      const pkg = state.packages.find((p) => p.id === packageId)
+      if (!brandId || !pkg) throw new Error('Your account needs to be approved before you can pay.')
+      state.brandPayments.unshift({ id: crypto.randomUUID(), brand_id: brandId, package_id: pkg.id, kind: pkg.billing, amount: pkg.price, status: 'paid', period_start: pkg.billing === 'monthly' ? inDays(0) : null, created_at: now(), paid_at: now() })
+      persist()
+      return { paid: true }
+    },
+    async listBrandPayments() {
+      await tick()
+      return state.brandPayments.filter((p) => isAdmin() || p.brand_id === myBrandId()).sort((a, b) => b.created_at.localeCompare(a.created_at))
+    },
+    async listBriefs() {
+      await tick()
+      return state.briefs.filter((b) => isAdmin() || b.brand_id === myBrandId()).sort((a, b) => b.created_at.localeCompare(a.created_at))
+    },
+    async submitBrief(paymentId, input, packageId) {
+      const brandId = myBrandId()
+      const payment = state.brandPayments.find((p) => p.id === paymentId && p.brand_id === brandId && p.status === 'paid')
+      if (!payment || state.briefs.some((b) => b.payment_id === paymentId)) throw new Error('Choose a package and pay before submitting a brief.')
+      state.briefs.unshift({ ...input, id: crypto.randomUUID(), brand_id: brandId!, payment_id: paymentId, package_id: packageId, status: 'submitted', admin_note: '', collab_id: null, created_at: now(), updated_at: now() })
+      persist()
+    },
+    async resubmitBrief(id, input) {
+      const brief = state.briefs.find((b) => b.id === id && b.brand_id === myBrandId())
+      if (!brief || brief.status !== 'changes_requested') throw new Error('This brief is with The Social Atelier and can’t be changed right now.')
+      Object.assign(brief, input, { status: 'submitted', updated_at: now() })
+      persist()
+    },
+    async uploadBriefImage(file) {
+      // Kept small so it fits in this browser's storage.
+      const bitmap = await createImageBitmap(file)
+      const scale = Math.min(1, 900 / Math.max(bitmap.width, bitmap.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(bitmap.width * scale)
+      canvas.height = Math.round(bitmap.height * scale)
+      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+      return canvas.toDataURL('image/jpeg', 0.8)
+    },
+    async getShortlist(): Promise<ShortlistCard[]> {
+      await tick()
+      const brandId = myBrandId()
+      return state.shortlist
+        .filter((s) => s.brand_id === brandId)
+        .map((s) => {
+          const a = state.applications.find((x) => x.id === s.application_id)!
+          const p = state.profiles.find((x) => x.id === a.user_id)!
+          const pastPosts = state.applications
+            .filter((x) => x.user_id === p.id && x.id !== a.id && x.status === 'accepted' && x.post_links.length > 0)
+            .sort((x, y) => (y.posted_at ?? '').localeCompare(x.posted_at ?? ''))
+            .flatMap((x) => x.post_links)
+            .slice(0, 3)
+          return {
+            application_id: s.application_id, collab_id: s.collab_id, collab_title: state.collabs.find((c) => c.id === s.collab_id)?.title ?? '',
+            sent_at: s.sent_at, decision: s.decision, note: s.note, decided_at: s.decided_at,
+            name: p.full_name, instagram: p.instagram, tiktok: p.tiktok, followers: p.followers, city: p.city, bio: p.bio,
+            reliability: reliabilityLabel(p.id), past_posts: pastPosts,
+          }
+        })
+        .sort((x, y) => Number(!!x.decision) - Number(!!y.decision) || y.sent_at.localeCompare(x.sent_at))
+    },
+    async decideShortlist(applicationId, decision, note) {
+      const entry = state.shortlist.find((s) => s.application_id === applicationId && s.brand_id === myBrandId() && !s.decision)
+      if (!entry) throw new Error('This creator isn’t waiting for your decision.')
+      Object.assign(entry, { decision, note, decided_at: now(), handled: false })
+      const app = state.applications.find((a) => a.id === applicationId)!
+      const collab = state.collabs.find((c) => c.id === app.collab_id)!
+      if (app.status === 'pending') {
+        if (decision === 'approved') {
+          const from = app.preferred_date && app.preferred_date > inDays(0) ? app.preferred_date : inDays(0)
+          const d = new Date(`${from}T12:00:00`)
+          d.setDate(d.getDate() + collab.content_due_days)
+          Object.assign(app, { status: 'accepted', seen: false, content_due: app.content_due ?? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })
+        } else app.status = 'declined'
+      }
+      persist()
+    },
+    async getCampaigns(): Promise<BrandCampaign[]> {
+      await tick()
+      const brandId = myBrandId()
+      return state.collabs
+        .filter((c) => c.brand_id === brandId)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((c) => {
+          const accepted = state.applications.filter((a) => a.collab_id === c.id && a.status === 'accepted')
+          const count = (s: string[]) => accepted.filter((a) => s.includes(deliveryStatus(a))).length
+          return {
+            id: c.id, title: c.title, status: c.status, type: c.type, event_date: c.event_date, location: c.location, city: c.city, spots: c.spots, created_at: c.created_at,
+            booked: accepted.length, posted: count(['posted', 'posted-late']), due: count(['due']), overdue: count(['overdue']), report: buildReport(c.id),
+          }
+        })
+    },
+
+    async listBrandAccounts() {
+      await tick()
+      return [...state.brandAccounts].sort((a, b) => b.created_at.localeCompare(a.created_at))
+    },
+    async approveBrandAccount(userId, brandId) {
+      const acc = state.brandAccounts.find((a) => a.user_id === userId)!
+      let id = brandId ?? state.brands.find((b) => b.name.toLowerCase() === acc.business_name.toLowerCase())?.id
+      if (!id) {
+        id = crypto.randomUUID()
+        state.brands.push({ id, name: acc.business_name, instagram: acc.instagram, contact_name: acc.contact_name, email: acc.email, phone: acc.phone, area: acc.area, deal_type: 'paid', monthly_fee: null, retainer_start: null, notes: '', created_at: now() })
+      }
+      Object.assign(acc, { status: 'approved', brand_id: id })
+      state.profiles = state.profiles.map((p) => (p.id === userId ? { ...p, status: 'approved' } : p))
+      persist()
+      return id
+    },
+    async declineBrandAccount(userId) {
+      state.brandAccounts = state.brandAccounts.map((a) => (a.user_id === userId ? { ...a, status: 'declined' } : a))
+      state.profiles = state.profiles.map((p) => (p.id === userId ? { ...p, status: 'rejected' } : p))
+      persist()
+    },
+    async savePackage(input, id) {
+      state.packages = id ? state.packages.map((p) => (p.id === id ? { ...p, ...input } : p)) : [...state.packages, { ...input, id: crypto.randomUUID() }]
+      persist()
+    },
+    async sendBriefBack(id, note) {
+      state.briefs = state.briefs.map((b) => (b.id === id ? { ...b, status: 'changes_requested', admin_note: note, updated_at: now() } : b))
+      persist()
+    },
+    async publishBrief(briefId, input) {
+      const collab: Collab = { ...input, brand: state.brands.find((b) => b.id === input.brand_id)?.name ?? input.brand, id: crypto.randomUUID(), created_at: now() }
+      state.collabs = [collab, ...state.collabs]
+      state.briefs = state.briefs.map((b) => (b.id === briefId ? { ...b, status: 'approved', collab_id: collab.id, admin_note: '', updated_at: now() } : b))
+      persist()
+      return collab
+    },
+    async listShortlist() {
+      await tick()
+      return [...state.shortlist]
+    },
+    async sendToBrand(applicationId) {
+      if (state.shortlist.some((s) => s.application_id === applicationId)) throw new Error('Already sent to the brand.')
+      const app = state.applications.find((a) => a.id === applicationId)!
+      const collab = state.collabs.find((c) => c.id === app.collab_id)!
+      if (!collab.brand_id) throw new Error('This collab isn’t linked to a brand.')
+      state.shortlist.push({ application_id: applicationId, collab_id: collab.id, brand_id: collab.brand_id, sent_at: now(), decision: null, note: '', decided_at: null, handled: false })
+      persist()
+    },
+    async removeFromShortlist(applicationId) {
+      state.shortlist = state.shortlist.filter((s) => !(s.application_id === applicationId && !s.decision))
+      persist()
+    },
+    async markShortlistHandled(applicationId) {
+      state.shortlist = state.shortlist.map((s) => (s.application_id === applicationId ? { ...s, handled: true } : s))
+      persist()
+    },
     async getReportToken(collabId) {
       state.reportLinks[collabId] ??= crypto.randomUUID()
       persist()
@@ -399,17 +657,7 @@ export function createDemoApi(): Api {
     async getReport(token): Promise<BrandReport | null> {
       await tick()
       const collabId = Object.entries(state.reportLinks).find(([, t]) => t === token)?.[0]
-      const c = state.collabs.find((x) => x.id === collabId)
-      if (!c) return null
-      const creators = state.applications
-        .filter((a) => a.collab_id === c.id && a.status === 'accepted' && a.attendance !== 'no_show')
-        .map((a) => {
-          const p = state.profiles.find((x) => x.id === a.user_id)!
-          return { name: p.full_name, instagram: p.instagram, tiktok: p.tiktok, followers: p.followers, city: p.city, visited: a.scheduled_start, content_due: a.content_due, post_links: a.post_links, posted_at: a.posted_at }
-        })
-        .sort((x, y) => (x.posted_at ?? '9').localeCompare(y.posted_at ?? '9') || x.name.localeCompare(y.name))
-      const { title, brand, type, category, city, location, image_url, event_date, deliverables } = c
-      return { collab: { title, brand, type, category, city, location, image_url, event_date, deliverables }, creators, generated_at: now() }
+      return collabId ? buildReport(collabId) : null
     },
     async listInfluencers() {
       await tick()

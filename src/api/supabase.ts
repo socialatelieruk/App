@@ -1,5 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Application, Brand, BrandReport, Collab, CollabFinance, DeliveryStats, Profile, RetainerPayment } from '../types'
+import type {
+  Application,
+  Brand,
+  BrandAccount,
+  BrandCampaign,
+  BrandPayment,
+  BrandReport,
+  Brief,
+  Collab,
+  CollabFinance,
+  DeliveryStats,
+  Package,
+  Profile,
+  RetainerPayment,
+  ShortlistCard,
+  ShortlistEntry,
+} from '../types'
 import type { Api } from './types'
 
 export function createSupabaseApi(url: string, anonKey: string): Api {
@@ -46,8 +62,8 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       if (error) throw new Error(error.message)
     },
 
-    async signUp(email, password) {
-      const { data, error } = await sb.auth.signUp({ email, password })
+    async signUp(email, password, as) {
+      const { data, error } = await sb.auth.signUp({ email, password, options: as ? { data: { signup_as: as } } : undefined })
       if (error) throw new Error(error.message)
       if (!data.session) throw new Error('Check your email to confirm your account, then sign in.')
     },
@@ -203,6 +219,116 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
           .from('retainer_payments')
           .upsert({ brand_id: brandId, month, amount, status, invoiced_on: invoicedOn, paid_on: null }, { onConflict: 'brand_id,month' }),
       )
+    },
+
+    async getMyBrandAccount() {
+      const id = await uid()
+      return check(await sb.from('brand_accounts').select('*').eq('user_id', id).maybeSingle()) as BrandAccount | null
+    },
+
+    async registerBrand(input) {
+      check(
+        await sb.rpc('register_brand', {
+          in_business_name: input.business_name,
+          in_contact_name: input.contact_name,
+          in_phone: input.phone,
+          in_instagram: input.instagram,
+          in_website: input.website,
+          in_area: input.area,
+          in_category: input.category,
+        }),
+      )
+    },
+
+    async listPackages() {
+      const rows = check(await sb.from('packages').select('*').order('sort')) as Package[]
+      return rows.map((p) => ({ ...p, price: Number(p.price) }))
+    },
+
+    async startCheckout(packageId) {
+      return (await invoke('stripe-checkout', { package_id: packageId })) as { url: string }
+    },
+
+    async listBrandPayments() {
+      const rows = check(await sb.from('brand_payments').select('*').order('created_at', { ascending: false })) as BrandPayment[]
+      return rows.map((p) => ({ ...p, amount: Number(p.amount) }))
+    },
+
+    async listBriefs() {
+      return check(await sb.from('briefs').select('*').order('created_at', { ascending: false })) as Brief[]
+    },
+
+    async submitBrief(paymentId, input, packageId) {
+      const account = (check(await sb.from('brand_accounts').select('brand_id').eq('user_id', await uid()).single()) as { brand_id: string })
+      check(await sb.from('briefs').insert({ ...input, brand_id: account.brand_id, payment_id: paymentId, package_id: packageId }))
+    },
+
+    async resubmitBrief(id, input) {
+      check(await sb.from('briefs').update(input).eq('id', id))
+    },
+
+    async uploadBriefImage(file) {
+      const account = (check(await sb.from('brand_accounts').select('brand_id').eq('user_id', await uid()).single()) as { brand_id: string })
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
+      const path = `${account.brand_id}/${crypto.randomUUID()}.${ext}`
+      const { error } = await sb.storage.from('brief-images').upload(path, file, { contentType: file.type, upsert: false })
+      if (error) throw new Error(error.message)
+      return sb.storage.from('brief-images').getPublicUrl(path).data.publicUrl
+    },
+
+    async getShortlist() {
+      return (check(await sb.rpc('brand_shortlist')) ?? []) as ShortlistCard[]
+    },
+
+    async decideShortlist(applicationId, decision, note) {
+      check(await sb.rpc('brand_decide', { application: applicationId, decision, note }))
+    },
+
+    async getCampaigns() {
+      return (check(await sb.rpc('brand_campaigns')) ?? []) as BrandCampaign[]
+    },
+
+    async listBrandAccounts() {
+      return check(await sb.from('brand_accounts').select('*').order('created_at', { ascending: false })) as BrandAccount[]
+    },
+
+    async approveBrandAccount(userId, brandId) {
+      return check(await sb.rpc('approve_brand_account', { account_user_id: userId, link_brand_id: brandId })) as string
+    },
+
+    async declineBrandAccount(userId) {
+      check(await sb.rpc('decline_brand_account', { account_user_id: userId, note: '' }))
+    },
+
+    async savePackage(input, id) {
+      check(await (id ? sb.from('packages').update(input).eq('id', id) : sb.from('packages').insert(input)))
+    },
+
+    async sendBriefBack(id, note) {
+      check(await sb.from('briefs').update({ status: 'changes_requested', admin_note: note }).eq('id', id))
+    },
+
+    async publishBrief(briefId, input) {
+      const collab = check(await sb.from('collabs').insert(input).select().single()) as Collab
+      check(await sb.from('briefs').update({ status: 'approved', collab_id: collab.id, admin_note: '' }).eq('id', briefId))
+      return collab
+    },
+
+    async listShortlist() {
+      return check(await sb.from('shortlist').select('*')) as ShortlistEntry[]
+    },
+
+    async sendToBrand(applicationId) {
+      const { error } = await sb.from('shortlist').insert({ application_id: applicationId })
+      if (error) throw new Error(error.code === '23505' ? 'Already sent to the brand.' : error.message)
+    },
+
+    async removeFromShortlist(applicationId) {
+      check(await sb.from('shortlist').delete().eq('application_id', applicationId).is('decision', null))
+    },
+
+    async markShortlistHandled(applicationId) {
+      check(await sb.from('shortlist').update({ handled: true }).eq('application_id', applicationId))
     },
 
     async getReport(token) {

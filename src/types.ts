@@ -1,4 +1,4 @@
-export type Role = 'influencer' | 'admin'
+export type Role = 'influencer' | 'admin' | 'brand'
 export type ProfileStatus = 'pending' | 'approved' | 'rejected'
 
 export interface Profile {
@@ -36,6 +36,7 @@ export interface Collab {
   title: string
   brand: string // brand name, as creators see it
   brand_id: string | null // the brand record (admins only see its details)
+  package_id: string | null // the package that paid for it, for brand-portal collabs
   description: string
   category: Category
   type: CollabType
@@ -169,4 +170,124 @@ export interface RetainerPayment {
   status: PaymentStatus
   invoiced_on: string | null
   paid_on: string | null
+}
+
+// Brand portal --------------------------------------------------------------
+
+export const BRAND_CATEGORIES = ['Food & Drink', 'Beauty', 'Wellness', 'Fashion', 'Hotels', 'Other'] as const
+export type BrandCategory = (typeof BRAND_CATEGORIES)[number]
+
+// A brand user's sign-up details; approval links it to a brand record.
+export interface BrandAccount {
+  user_id: string
+  business_name: string
+  contact_name: string
+  email: string
+  phone: string
+  instagram: string
+  website: string
+  area: string
+  category: BrandCategory
+  status: 'pending' | 'approved' | 'declined'
+  brand_id: string | null
+  created_at: string
+}
+
+export type BrandSignup = Pick<BrandAccount, 'business_name' | 'contact_name' | 'phone' | 'instagram' | 'website' | 'area' | 'category'>
+
+export interface Package {
+  id: string
+  name: string
+  description: string
+  creators: number
+  price: number
+  billing: 'one_off' | 'monthly'
+  active: boolean
+  sort: number
+}
+
+export type PackageInput = Omit<Package, 'id'>
+
+export interface BrandPayment {
+  id: string
+  brand_id: string
+  package_id: string | null
+  kind: 'one_off' | 'monthly'
+  amount: number
+  status: 'pending' | 'paid' | 'failed' | 'cancelled'
+  period_start: string | null
+  created_at: string
+  paid_at: string | null
+}
+
+export interface Brief {
+  id: string
+  brand_id: string
+  payment_id: string | null
+  package_id: string | null
+  title: string
+  offer: string
+  deliverables: string
+  location: string
+  city: string
+  preferred_dates: string
+  type: CollabType
+  min_followers: number
+  creator_type: string
+  image_url: string
+  status: 'submitted' | 'changes_requested' | 'approved'
+  admin_note: string // why it was sent back
+  collab_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BriefInput = Pick<Brief, 'title' | 'offer' | 'deliverables' | 'location' | 'city' | 'preferred_dates' | 'type' | 'min_followers' | 'creator_type' | 'image_url'>
+
+// Admin's view of a shortlisted applicant.
+export interface ShortlistEntry {
+  application_id: string
+  collab_id: string
+  brand_id: string
+  sent_at: string
+  decision: 'approved' | 'declined' | null
+  note: string
+  decided_at: string | null
+  handled: boolean // the admin has acted on the decision
+}
+
+// What a brand sees for a shortlisted creator: public details only.
+export interface ShortlistCard {
+  application_id: string
+  collab_id: string
+  collab_title: string
+  sent_at: string
+  decision: 'approved' | 'declined' | null
+  note: string
+  decided_at: string | null
+  name: string
+  instagram: string
+  tiktok: string
+  followers: number
+  city: string
+  bio: string
+  reliability: string
+  past_posts: string[]
+}
+
+export interface BrandCampaign {
+  id: string
+  title: string
+  status: CollabStatus
+  type: CollabType
+  event_date: string | null
+  location: string
+  city: string
+  spots: number
+  created_at: string
+  booked: number
+  posted: number
+  due: number
+  overdue: number
+  report: BrandReport | null
 }

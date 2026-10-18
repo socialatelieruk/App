@@ -11,6 +11,8 @@ interface Props {
   onQueue: (kind: QueueKind) => void
   onOpenCollab: (c: Collab) => void
   onMoney: () => void
+  onBrandSignups: () => void
+  onBriefs: () => void
 }
 
 const dayLabel = (iso: string) => {
@@ -27,24 +29,30 @@ const localDay = (iso: string) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export default function Today({ data, onProfiles, onQueue, onOpenCollab, onMoney }: Props) {
+export default function Today({ data, onProfiles, onQueue, onOpenCollab, onMoney, onBrandSignups, onBriefs }: Props) {
   const pendingProfiles = data.influencers.filter((p) => p.status === 'pending').length
   const counts: Record<QueueKind, number> = {
     waiting: queue(data.applications, 'waiting').length,
     overdue: queue(data.applications, 'overdue').length,
     due: queue(data.applications, 'due').length,
     bookings: queue(data.applications, 'bookings').length,
+    replies: queue(data.applications, 'replies', data.shortlist).length,
   }
+  const brandSignups = data.brandAccounts.filter((a) => a.status === 'pending').length
+  const briefs = data.briefs.filter((b) => b.status === 'submitted').length
   const bookings = queue(data.applications, 'bookings')
   const byDay = new Map<string, Application[]>()
   for (const b of bookings) {
     const day = localDay(b.scheduled_start!)
     byDay.set(day, [...(byDay.get(day) ?? []), b])
   }
-  const money = moneySummary(data.brands, data.collabs, data.finances, data.retainers)
-  const nothingToDo = pendingProfiles + counts.waiting + counts.overdue + counts.due + counts.bookings === 0
+  const money = moneySummary(data.brands, data.collabs, data.finances, data.retainers, data.brandPayments)
+  const nothingToDo = pendingProfiles + brandSignups + briefs + counts.replies + counts.waiting + counts.overdue + counts.due + counts.bookings === 0
 
   const cards: { label: string; count: number; onClick: () => void; urgent?: boolean }[] = [
+    { label: 'Briefs to review', count: briefs, onClick: onBriefs },
+    { label: 'Brand replies', count: counts.replies, onClick: () => onQueue('replies') },
+    { label: 'Brand sign-ups', count: brandSignups, onClick: onBrandSignups },
     { label: 'Profiles to review', count: pendingProfiles, onClick: onProfiles },
     { label: 'Applications waiting', count: counts.waiting, onClick: () => onQueue('waiting') },
     { label: 'Content overdue', count: counts.overdue, onClick: () => onQueue('overdue'), urgent: true },
@@ -62,7 +70,7 @@ export default function Today({ data, onProfiles, onQueue, onOpenCollab, onMoney
       {nothingToDo ? (
         <div className="caught-up">
           <h2>All caught up</h2>
-          <p className="muted">No profiles to review, no applications waiting and no content overdue. Nothing is booked for the next 7 days.</p>
+          <p className="muted">No briefs, sign-ups or brand replies to deal with, no applications waiting and no content overdue. Nothing is booked for the next 7 days.</p>
         </div>
       ) : (
         <div className="today-cards">

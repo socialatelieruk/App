@@ -1387,3 +1387,242 @@ label.toggle input {
 .error.small {
   font-size: 0.85rem;
 }
+
+/* Brand portal */
+.pending-title {
+  text-align: center;
+  font-size: 2rem;
+}
+
+.next-step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px;
+  text-align: left;
+  width: 100%;
+  border-color: var(--ink);
+}
+
+.package-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+}
+
+.package-price {
+  font-family: var(--serif);
+  font-size: 1.7rem;
+  font-variant-numeric: lining-nums;
+}
+
+.brief-row,
+.campaign-card,
+.creator-card,
+.decided-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+}
+
+.brief-row[data-status='changes_requested'] {
+  border-color: var(--danger);
+}
+
+.brief-image {
+  max-width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.campaign-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.campaign-stats > div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+}
+
+.campaign-stats dt {
+  font-size: 0.56rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.campaign-stats dd {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.6rem;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.campaign-stats .of {
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.campaign-stats .owed dd {
+  color: var(--danger);
+}
+
+.inline-report {
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+
+.inline-report .report {
+  gap: 20px;
+}
+
+.inline-report .report-logo {
+  display: none;
+}
+
+.badge[data-status='live'] {
+  color: var(--accepted);
+}
+
+.followers {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  font-variant-numeric: lining-nums;
+}
+
+.reliability-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--gold);
+}
+
+.decide {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.small-danger {
+  padding: 10px 16px;
+  font-size: 0.66rem;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.payment-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.row-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+}
+
+.row-card-main strong {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  font-weight: 500;
+}
+
+.shortlist-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-size: 0.88rem;
+  color: var(--gold);
+}
+
+.shortlist-line[data-decision='approved'] {
+  color: var(--accepted);
+}
+
+.shortlist-line[data-decision='declined'] {
+  color: var(--danger);
+}
+
+.signup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+}
+
+.facts.compact {
+  padding: 10px 0;
+  gap: 8px 12px;
+  grid-template-columns: 6rem 1fr;
+}
+
+.package-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+}
+
+.brief-summary {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.send-back {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.auth a.primary {
+  display: block;
+  text-decoration: none;
+}
+
+fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+input[type='file'] {
+  border-bottom: none;
+  padding: 4px 0;
+  font-size: 0.85rem;
+}
+
+input[type='file']::file-selector-button {
+  font: inherit;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--ink);
+  padding: 10px 14px;
+  margin-right: 12px;
+  cursor: pointer;
+}

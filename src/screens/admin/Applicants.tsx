@@ -3,12 +3,21 @@ import { api } from '../../api'
 import { addDays, DELIVERY_LABELS, deliveryStatus, platformOf, reliability } from '../../delivery'
 import { errorMessage, formatBooking, formatDate, formatFollowers, todayISO } from '../../format'
 import { reportUrl, shareLink } from '../../links'
-import type { Application, ApplicationStatus, Booking, BrandReport, Collab, DeliveryStats } from '../../types'
+import type { Application, ApplicationStatus, Booking, BrandReport, Collab, DeliveryStats, ShortlistEntry } from '../../types'
 import { Badge, Empty, ErrorText, Sheet, Spinner } from '../../ui'
 import { ReportView } from '../BrandReport'
 
-export default function Applicants({ collab, onClose, onEdit, onChanged }: { collab: Collab; onClose: () => void; onEdit: () => void; onChanged: () => void }) {
+interface Props {
+  collab: Collab
+  brandHasPortal: boolean // the brand signs in and approves its own shortlist
+  onClose: () => void
+  onEdit: () => void
+  onChanged: () => void
+}
+
+export default function Applicants({ collab, brandHasPortal, onClose, onEdit, onChanged }: Props) {
   const [apps, setApps] = useState<Application[] | null>(null)
+  const [shortlist, setShortlist] = useState<ShortlistEntry[]>([])
   const [stats, setStats] = useState<Record<string, DeliveryStats>>({})
   const [error, setError] = useState<string | null>(null)
   const [scheduling, setScheduling] = useState<string | null>(null) // application being accepted or re-timed
@@ -18,6 +27,7 @@ export default function Applicants({ collab, onClose, onEdit, onChanged }: { col
   const load = useCallback(() => {
     api.listApplicants(collab.id).then(setApps, (e) => setError(errorMessage(e)))
     api.getReliability().then(setStats, () => {})
+    api.listShortlist().then((s) => setShortlist(s.filter((x) => x.collab_id === collab.id)), () => {})
   }, [collab.id])
 
   useEffect(load, [load])
@@ -34,7 +44,15 @@ export default function Applicants({ collab, onClose, onEdit, onChanged }: { col
     }
   }
 
-  const setStatus = (id: string, status: ApplicationStatus, booking?: Booking) => run(() => api.setApplicationStatus(id, status, booking))
+  const setStatus = (id: string, status: ApplicationStatus, booking?: Booking) =>
+    run(async () => {
+      await api.setApplicationStatus(id, status, booking)
+      // Acting on a brand's decision (booking or declining) clears it from Brand replies.
+      const entry = shortlist.find((s) => s.application_id === id)
+      if (entry?.decision && !entry.handled) await api.markShortlistHandled(id)
+    })
+  const entryFor = (id: string) => shortlist.find((s) => s.application_id === id)
+  const withBrand = shortlist.filter((s) => !s.decision).length
 
   const share = async () => {
     setShareNote(null)
@@ -109,6 +127,13 @@ export default function Applicants({ collab, onClose, onEdit, onChanged }: { col
         </section>
       )}
 
+      {brandHasPortal && (
+        <p className="muted small">
+          {collab.brand} approves creators from your shortlist.
+          {withBrand > 0 && ` ${withBrand} waiting for their decision.`}
+        </p>
+      )}
+
       <ErrorText error={error} />
       {!apps ? (
         <Spinner />
@@ -145,6 +170,25 @@ export default function Applicants({ collab, onClose, onEdit, onChanged }: { col
                   </div>
                 )}
                 {a.message && <p className="quote">“{a.message}”</p>}
+                {(() => {
+                  const entry = entryFor(a.id)
+                  if (!entry) return null
+                  const note = entry.note ? `: “${entry.note}”` : ''
+                  return (
+                    <p className="shortlist-line" data-decision={entry.decision ?? 'waiting'}>
+                      {entry.decision === 'approved'
+                        ? `Approved by ${collab.brand}${note}`
+                        : entry.decision === 'declined'
+                          ? `Declined by ${collab.brand}${note}`
+                          : `With ${collab.brand} · waiting for their decision`}
+                      {!entry.decision && (
+                        <button className="link small" onClick={() => run(() => api.removeFromShortlist(a.id))}>
+                          Undo
+                        </button>
+                      )}
+                    </p>
+                  )
+                })()}
                 <span className="muted small">
                   Applied {formatDate(a.created_at)}
                   {a.preferred_date && ` · wants ${formatDate(a.preferred_date)}`}
@@ -182,8 +226,13 @@ export default function Applicants({ collab, onClose, onEdit, onChanged }: { col
                   />
                 ) : (
                   <div className="actions wrap">
+                    {brandHasPortal && a.status === 'pending' && !entryFor(a.id) && (
+                      <button className="primary small" onClick={() => run(() => api.sendToBrand(a.id))}>
+                        Send to brand
+                      </button>
+                    )}
                     {a.status !== 'accepted' ? (
-                      <button className="primary small" onClick={() => setScheduling(a.id)}>
+                      <button className={brandHasPortal ? 'secondary small' : 'primary small'} onClick={() => setScheduling(a.id)}>
                         Accept
                       </button>
                     ) : (

@@ -1,5 +1,5 @@
 import { todayISO } from './format'
-import type { Brand, Collab, CollabFinance, PaymentStatus, RetainerPayment } from './types'
+import type { Brand, BrandPayment, Collab, CollabFinance, PaymentStatus, RetainerPayment } from './types'
 
 export const OVERDUE_AFTER_DAYS = 30
 
@@ -57,12 +57,15 @@ export interface MoneySummary {
   overdue: number // invoiced over 30 days ago (included in outstanding)
 }
 
-// Totals across collab fees and retainer months, for all brands or the ones given.
+// Totals across collab fees, retainer months and brand-portal payments, for all
+// brands or the ones given. Portal checkouts that were never completed don't count;
+// a failed charge is outstanding (and overdue after 30 days).
 export function moneySummary(
   brands: Brand[],
   collabs: Collab[],
   finances: Record<string, CollabFinance>,
   payments: RetainerPayment[],
+  portal: BrandPayment[] = [],
   today = todayISO(),
 ): MoneySummary {
   const brandIds = new Set(brands.map((b) => b.id))
@@ -81,5 +84,10 @@ export function moneySummary(
     if (c.brand_id && brandIds.has(c.brand_id) && f?.fee) add(f.fee, f.payment_status, f.invoiced_on, f.paid_on)
   }
   for (const b of brands) for (const m of retainerMonths(b, payments, today)) if (m.amount) add(m.amount, m.status, m.invoiced_on, m.paid_on)
+  for (const p of portal) {
+    if (!brandIds.has(p.brand_id)) continue
+    if (p.status === 'paid') add(p.amount, 'paid', null, p.paid_at?.slice(0, 10) ?? null)
+    else if (p.status === 'failed') add(p.amount, 'invoiced', p.created_at.slice(0, 10), null)
+  }
   return sum
 }

@@ -31,7 +31,7 @@ export default function AdminCollabs({ collabs, brands, finances, onOpen, onNew 
               badge={
                 <span className="badges">
                   <span className="count">{c.application_count ?? 0} applied</span>
-                  <CollabFee finance={finances[c.id]} dealType={brands.find((b) => b.id === c.brand_id)?.deal_type} />
+                  <CollabFee finance={finances[c.id]} dealType={brands.find((b) => b.id === c.brand_id)?.deal_type} packaged={!!c.package_id} />
                   {c.status === 'closed' && <Badge status="closed" />}
                 </span>
               }

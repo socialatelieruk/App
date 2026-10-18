@@ -42,6 +42,61 @@ Until Supabase is connected, the app runs in **demo mode** with sample collabs a
    ```
    Sign out and back in, and you'll see the admin tabs. Repeat for any team member.
 
+## Brand portal
+
+Brands get their own login. They pay for a package, submit briefs, and approve creators from a shortlist you pick. They never browse all applicants.
+
+**How it works**
+1. **Sign-up.** On the sign-in screen a brand chooses **Create account → A brand** and fills in their business name, contact name, phone, Instagram, website, area and category. They see "We're reviewing your account" until you act.
+2. **Review.** You approve or decline them under **Brands → Sign-ups to review**. Approving links them to an existing brand record (matched by name) or creates a new one.
+3. **Package and payment.** The brand picks a package (you edit these under **Brands → Packages**) and pays with Stripe: a one-off payment or a monthly subscription. Each paid payment, including each month of a subscription, covers one brief. Payments count towards your money totals.
+4. **Brief.** The brand submits a brief: title, offer, what to post, location, dates, type, minimum followers, the creators they want and a photo. It appears on **Today → Briefs to review**. You edit it, then **Approve and publish**, which creates a normal collab linked to the brand and package with spots set to the package's creator count. Or you **Send back** with a note, and the brand edits and resubmits.
+5. **Shortlist.** Creators apply as usual. In a collab's applicants, tap **Send to brand** on the ones you'd put forward.
+6. **Decisions.** The brand sees each one as a card: name, handles, followers, city, bio, a reliability label and up to 3 past Social Atelier posts. They never see an email, phone number or pitch message. They approve or decline, with an optional note:
+   - **Approve:** accepts the application, so the creator is notified, with a posting deadline set from the collab.
+   - **Decline:** declines it.
+   - **Your follow-up:** both show on **Today → Brand replies**. You set a booking time for the approved ones (this adds it to the creator's calendar) and send replacements for the declined ones. You can still accept or decline anyone yourself.
+7. **Brand dashboard.** Brands have three tabs: **Campaigns** (each collab with bookings, posted, due and overdue counts, plus the live report), **Shortlist** (a dot shows when something needs their decision) and **Account** (details, package, payment history, sign out, delete).
+
+**What each person can see.** These rules are enforced in the database:
+- **Brands** read only their own account, briefs, payments and collabs. The shortlist comes from a server function that only returns creators you sent them.
+- **Creators** never see packages, payments, brand accounts or the shortlist.
+- **Publishing:** nothing a brand submits goes live without your approval.
+
+### Setting up the brand portal
+
+**1. Database.** In Supabase → SQL Editor, run `supabase/migrations/20261019_brand_portal.sql`. It's safe to run again. It seeds two packages:
+- **Starter:** 10 creators, £350 one-off.
+- **Monthly:** 4 creators a month at £350 a month. Change the monthly price under **Brands → Packages**.
+
+**2. Stripe (card payments)**
+1. Create an account at [stripe.com](https://stripe.com), and stay in **Test mode** (the toggle at the top) while you try it out.
+2. Go to **Developers → API keys** and copy the **Secret key** (`sk_test_…`, later `sk_live_…`). Add it as the GitHub secret `STRIPE_SECRET_KEY`. It is only ever used by the server, never in the app.
+3. You don't need to create products or prices in Stripe. Checkout is created from your packages in the app, with names like "The Social Atelier · Starter".
+4. Go to **Developers → Webhooks → Add endpoint**:
+   - Endpoint URL: `https://<your project ref>.supabase.co/functions/v1/stripe-webhook`
+   - Events: `checkout.session.completed`, `checkout.session.expired`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `invoice.paid`, `invoice.payment_failed`
+   - Copy the endpoint's **Signing secret** (`whsec_…`) into the GitHub secret `STRIPE_WEBHOOK_SECRET`.
+5. Add the GitHub secret `APP_URL` = `https://socialatelieruk.github.io/App/`. This is where Stripe sends brands back after paying.
+6. Under **Settings → Business**, add your business details. Under **Settings → Branding**, add your logo and colours (cream `#FAF5EF`, ink `#141210`) so Checkout matches the app.
+7. When you go live: switch to **Live mode**, create a live webhook the same way, and replace the two Stripe secrets with the live ones.
+
+**3. Email (Resend)**
+1. Create an account at [resend.com](https://resend.com) and verify your domain.
+2. Add these GitHub secrets:
+   - `RESEND_API_KEY`
+   - `EMAIL_FROM`, for example `The Social Atelier <hello@yourdomain.co.uk>`
+   - `ADMIN_EMAIL`: where admin alerts go; separate several with commas.
+
+**4. Deploy.** In GitHub, run **Actions → Deploy Supabase functions**. This deploys `stripe-checkout`, `stripe-webhook` and `email-events` and copies the secrets across.
+
+**5. Email triggers.** In Supabase → **Database → Webhooks**, create three hooks. Each one uses type **Supabase Edge Functions**, function `email-events`, and an HTTP header `x-webhook-secret` set to your `WEBHOOK_SECRET`.
+- Table `brand_accounts`, events **Insert** and **Update**: you get an email about each new sign-up; the brand gets one when approved or declined.
+- Table `briefs`, events **Insert** and **Update**: you get an email when a brief is submitted or resubmitted; the brand gets one when it's sent back or goes live.
+- Table `shortlist`, events **Insert** and **Update**: the brand gets an email when creators are ready, at most every 30 minutes; you get one when they approve or decline.
+
+Payment emails (succeeded or failed) go to both the brand and you, straight from the Stripe webhook.
+
 ## Admin: Today, brands and money
 
 **Today** is the first admin screen. Tappable cards show profiles to review, applications waiting, content overdue, content due this week and bookings in the next 7 days. Each opens the matching filtered list, and from there the collab's applicants. Below the cards are the money summary and this week's bookings by day. When nothing needs doing it says "All caught up".

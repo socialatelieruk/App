@@ -5,6 +5,7 @@ import { ErrorText } from '../ui'
 
 export default function Auth() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const [joinAs, setJoinAs] = useState<'creator' | 'brand'>('creator')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -31,12 +32,15 @@ export default function Auth() {
 
       {api.mode === 'demo' ? (
         <div className="stack">
-          <p className="notice">Demo mode: no backend connected yet. Try it as either role.</p>
+          <p className="notice">Demo mode: no backend connected yet. Try it as any role.</p>
           <button className="primary" disabled={busy} onClick={() => run(() => api.demoSignIn!('influencer'))}>
             Try as an influencer
           </button>
           <button className="secondary" disabled={busy} onClick={() => run(() => api.demoSignIn!('admin'))}>
             Try as The Social Atelier (admin)
+          </button>
+          <button className="secondary" disabled={busy} onClick={() => run(() => api.demoSignIn!('brand'))}>
+            Try as a brand
           </button>
         </div>
       ) : (
@@ -44,9 +48,22 @@ export default function Auth() {
           className="stack"
           onSubmit={(e) => {
             e.preventDefault()
-            run(() => (mode === 'signin' ? api.signIn(email, password) : api.signUp(email, password)))
+            run(() => (mode === 'signin' ? api.signIn(email, password) : api.signUp(email, password, joinAs === 'brand' ? 'brand' : undefined)))
           }}
         >
+          {mode === 'signup' && (
+            <fieldset className="stack tight">
+              <legend className="eyebrow">I'm joining as</legend>
+              <div className="segmented">
+                <button type="button" className={joinAs === 'creator' ? 'on' : ''} onClick={() => setJoinAs('creator')}>
+                  A creator
+                </button>
+                <button type="button" className={joinAs === 'brand' ? 'on' : ''} onClick={() => setJoinAs('brand')}>
+                  A brand
+                </button>
+              </div>
+            </fieldset>
+          )}
           <label>
             Email
             <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />

@@ -9,12 +9,16 @@ import '@fontsource/jost/500.css'
 import './index.css'
 import App from './App.tsx'
 import BrandReportPage from './screens/BrandReport.tsx'
+import PaymentReturn from './screens/PaymentReturn.tsx'
 
+const params = new URLSearchParams(window.location.search)
 // Brands open a collab's report at ?report=<token>, without signing in.
-const reportToken = new URLSearchParams(window.location.search).get('report')
+const reportToken = params.get('report')
+// Stripe Checkout returns to ?payment=success|cancelled.
+const payment = params.get('payment')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {reportToken ? <BrandReportPage token={reportToken} /> : <App />}
+    {reportToken ? <BrandReportPage token={reportToken} /> : payment ? <PaymentReturn status={payment} /> : <App />}
   </StrictMode>,
 )

@@ -4,18 +4,28 @@ import type {
   Booking,
   Brand,
   BrandInput,
+  BrandAccount,
+  BrandCampaign,
+  BrandPayment,
   BrandReport,
+  BrandSignup,
+  Brief,
+  BriefInput,
   Collab,
   CollabFinance,
   CollabInput,
   DeliveryStats,
   FinanceInput,
   PaymentStatus,
+  Package,
+  PackageInput,
   Profile,
   ProfileInput,
   ProfileStatus,
   RetainerPayment,
   Role,
+  ShortlistCard,
+  ShortlistEntry,
 } from '../types'
 
 export interface Api {
@@ -25,7 +35,7 @@ export interface Api {
   getUserId(): Promise<string | null>
   onAuthChange(cb: (userId: string | null) => void): () => void
   signIn(email: string, password: string): Promise<void>
-  signUp(email: string, password: string): Promise<void>
+  signUp(email: string, password: string, as?: 'brand'): Promise<void>
   resetPassword(email: string): Promise<void>
   signOut(): Promise<void>
   demoSignIn?(role: Role): Promise<void>
@@ -73,6 +83,32 @@ export interface Api {
   saveFinance(collabId: string, input: FinanceInput): Promise<void>
   listRetainerPayments(): Promise<RetainerPayment[]>
   saveRetainerPayment(brandId: string, month: string, amount: number, status: PaymentStatus, invoicedOn: string | null): Promise<void>
+
+  // Brand portal: brands
+  getMyBrandAccount(): Promise<BrandAccount | null>
+  registerBrand(input: BrandSignup): Promise<void>
+  listPackages(): Promise<Package[]> // brands: active packages; admins: all
+  startCheckout(packageId: string): Promise<{ url?: string; paid?: boolean }> // Stripe Checkout URL, or paid at once in demo mode
+  listBrandPayments(): Promise<BrandPayment[]> // brands: their own; admins: all
+  listBriefs(): Promise<Brief[]> // brands: their own; admins: all
+  submitBrief(paymentId: string, input: BriefInput, packageId: string | null): Promise<void>
+  resubmitBrief(id: string, input: BriefInput): Promise<void>
+  uploadBriefImage(file: File): Promise<string> // public image URL
+  getShortlist(): Promise<ShortlistCard[]>
+  decideShortlist(applicationId: string, decision: 'approved' | 'declined', note: string): Promise<void>
+  getCampaigns(): Promise<BrandCampaign[]>
+
+  // Brand portal: admins
+  listBrandAccounts(): Promise<BrandAccount[]>
+  approveBrandAccount(userId: string, brandId: string | null): Promise<string> // the linked brand id
+  declineBrandAccount(userId: string): Promise<void>
+  savePackage(input: PackageInput, id?: string): Promise<void>
+  sendBriefBack(id: string, note: string): Promise<void>
+  publishBrief(briefId: string, collab: CollabInput): Promise<Collab>
+  listShortlist(): Promise<ShortlistEntry[]>
+  sendToBrand(applicationId: string): Promise<void>
+  removeFromShortlist(applicationId: string): Promise<void>
+  markShortlistHandled(applicationId: string): Promise<void>
 
   // Brand report: works without signing in
   getReport(token: string): Promise<BrandReport | null>

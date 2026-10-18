@@ -45,8 +45,8 @@ export function PaymentTag({ amount, status, invoicedOn }: { amount: number; sta
 }
 
 // A collab's fee, or what covers it when there's no fee.
-export function CollabFee({ finance, dealType }: { finance?: CollabFinance; dealType?: DealType }) {
-  if (!finance?.fee) return <span className="payment-tag">{dealType === 'retainer' ? 'Retainer' : 'Gifted'}</span>
+export function CollabFee({ finance, dealType, packaged }: { finance?: CollabFinance; dealType?: DealType; packaged?: boolean }) {
+  if (!finance?.fee) return <span className="payment-tag">{packaged ? 'Package' : dealType === 'retainer' ? 'Retainer' : 'Gifted'}</span>
   return <PaymentTag amount={finance.fee} status={finance.payment_status} invoicedOn={finance.invoiced_on} />
 }
 

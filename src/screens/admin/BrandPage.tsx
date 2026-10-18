@@ -23,7 +23,9 @@ export default function BrandPage({ brand, data, onClose, onEdit, onOpenCollab, 
   const [error, setError] = useState<string | null>(null)
   const collabs = data.collabs.filter((c) => c.brand_id === brand.id)
   const months = retainerMonths(brand, data.retainers)
-  const money = moneySummary([brand], data.collabs, data.finances, data.retainers)
+  const money = moneySummary([brand], data.collabs, data.finances, data.retainers, data.brandPayments)
+  const accounts = data.brandAccounts.filter((a) => a.brand_id === brand.id)
+  const portalPayments = data.brandPayments.filter((p) => p.brand_id === brand.id && (p.status === 'paid' || p.status === 'failed'))
 
   const setMonth = async (month: string, amount: number, status: PaymentStatus, invoicedOn: string | null) => {
     setError(null)
@@ -96,10 +98,41 @@ export default function BrandPage({ brand, data, onClose, onEdit, onOpenCollab, 
         )}
       </dl>
 
+      {accounts.length > 0 && (
+        <section>
+          <h3 className="section-title">Brand portal</h3>
+          {accounts.map((a) => (
+            <p key={a.user_id} className="small">
+              {a.contact_name} signs in as <a href={`mailto:${a.email}`}>{a.email}</a>
+              {a.status !== 'approved' && ` · ${a.status}`}
+            </p>
+          ))}
+        </section>
+      )}
+
       <section className="stack tight">
         <h3 className="section-title">Money</h3>
         <MoneySummaryView summary={money} />
       </section>
+
+      {portalPayments.length > 0 && (
+        <section>
+          <h3 className="section-title">Package payments</h3>
+          <ul className="list payment-history">
+            {portalPayments.map((p) => (
+              <li key={p.id}>
+                <span>
+                  {data.packages.find((x) => x.id === p.package_id)?.name ?? 'Package'}
+                  <span className="muted small"> · {new Date(p.paid_at ?? p.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                </span>
+                <span className={p.status === 'failed' ? 'owed' : ''}>
+                  {formatMoney(p.amount)} · {p.status === 'paid' ? 'Paid' : 'Failed'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {months.length > 0 && (
         <section>
@@ -163,7 +196,7 @@ export default function BrandPage({ brand, data, onClose, onEdit, onOpenCollab, 
                         ? 'No creators booked yet'
                         : [`${d.posted}/${d.booked} posted`, d.overdue && `${d.overdue} overdue`, d.noShow && `${d.noShow} no-show`].filter(Boolean).join(' · ')}
                     </span>
-                    <CollabFee finance={data.finances[c.id]} dealType={brand.deal_type} />
+                    <CollabFee finance={data.finances[c.id]} dealType={brand.deal_type} packaged={!!c.package_id} />
                   </button>
                   {d.booked > 0 && (
                     <div className="actions">
