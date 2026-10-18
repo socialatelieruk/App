@@ -26,7 +26,7 @@ export default function Auth() {
 
   return (
     <div className="auth">
-      <img className="logo" src="/logo.png" alt="The Social Atelier" />
+      <img className="logo" src={`${import.meta.env.BASE_URL}logo.png`} alt="The Social Atelier" />
       <p className="lead">An invitation-only house of brand collaborations, experiences and events for creators.</p>
 
       {api.mode === 'demo' ? (
