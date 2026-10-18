@@ -68,12 +68,13 @@ export interface Application {
   profile?: Profile
 }
 
-export const CATEGORY_GRADIENTS: Record<Category, string> = {
-  'Food & Drink': 'linear-gradient(135deg, #f08c00, #c2255c)',
-  Beauty: 'linear-gradient(135deg, #f783ac, #9c36b5)',
-  Fashion: 'linear-gradient(135deg, #343a40, #868e96)',
-  Wellness: 'linear-gradient(135deg, #38d9a9, #1971c2)',
-  Travel: 'linear-gradient(135deg, #4dabf7, #364fc7)',
-  Experiences: 'linear-gradient(135deg, #b5651d, #e8590c)',
-  Lifestyle: 'linear-gradient(135deg, #a9e34b, #2b8a3e)',
+// Quiet tonal backdrops for collabs without a photo.
+export const CATEGORY_TONES: Record<Category, string> = {
+  'Food & Drink': '#e9dccb',
+  Beauty: '#efdcd6',
+  Fashion: '#dcd6cf',
+  Wellness: '#d9e0d5',
+  Travel: '#d6dde3',
+  Experiences: '#e6d8c4',
+  Lifestyle: '#e3ddd2',
 }

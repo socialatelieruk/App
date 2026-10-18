@@ -12,7 +12,7 @@ import Applicants from './screens/admin/Applicants'
 import CollabForm from './screens/admin/CollabForm'
 import Influencers from './screens/admin/Influencers'
 import type { Application, Collab, Profile } from './types'
-import { ErrorText, Spinner } from './ui'
+import { ErrorText, Icon, Spinner, type IconName } from './ui'
 
 type InfluencerTab = 'explore' | 'mine' | 'profile'
 type AdminTab = 'collabs' | 'influencers' | 'profile'
@@ -115,9 +115,9 @@ function InfluencerApp({ profile, onProfile }: { profile: Profile; onProfile: (p
 
       <TabBar
         tabs={[
-          ['explore', '✨', 'Explore'],
-          ['mine', '📋', 'My collabs'],
-          ['profile', '👤', 'Profile'],
+          ['explore', 'explore', 'Explore'],
+          ['mine', 'list', 'My collabs'],
+          ['profile', 'person', 'Profile'],
         ]}
         active={tab}
         onChange={(t) => setTab(t as InfluencerTab)}
@@ -165,9 +165,9 @@ function AdminApp({ profile, onProfile }: { profile: Profile; onProfile: (p: Pro
 
       <TabBar
         tabs={[
-          ['collabs', '🎁', 'Collabs'],
-          ['influencers', '⭐', 'Influencers'],
-          ['profile', '👤', 'Account'],
+          ['collabs', 'gift', 'Collabs'],
+          ['influencers', 'people', 'Influencers'],
+          ['profile', 'person', 'Account'],
         ]}
         active={tab}
         onChange={(t) => setTab(t as AdminTab)}
@@ -196,12 +196,12 @@ function AdminApp({ profile, onProfile }: { profile: Profile; onProfile: (p: Pro
   )
 }
 
-function TabBar({ tabs, active, onChange }: { tabs: [string, string, string][]; active: string; onChange: (t: string) => void }) {
+function TabBar({ tabs, active, onChange }: { tabs: [string, IconName, string][]; active: string; onChange: (t: string) => void }) {
   return (
     <nav className="tabbar">
       {tabs.map(([id, icon, label]) => (
         <button key={id} className={active === id ? 'on' : ''} onClick={() => onChange(id)}>
-          <span className="tab-icon">{icon}</span>
+          <Icon name={icon} />
           {label}
         </button>
       ))}

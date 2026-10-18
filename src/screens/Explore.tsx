@@ -25,8 +25,8 @@ export default function Explore({ profile, collabs, applications, onOpen }: Prop
   return (
     <>
       <header className="page-header">
+        <span className="eyebrow">Welcome, {profile.full_name.split(' ')[0] || 'there'}</span>
         <h1>Explore</h1>
-        <p className="muted">Hi {profile.full_name.split(' ')[0] || 'there'} 👋</p>
       </header>
 
       {profile.status === 'pending' && <p className="notice">Thanks for joining! Your profile is being reviewed. You can browse now and apply once you're approved.</p>}

@@ -26,9 +26,8 @@ export default function Auth() {
 
   return (
     <div className="auth">
-      <div className="brand-mark">SA</div>
-      <h1>Social Atelier</h1>
-      <p className="lead">Gifted experiences, events and brand collaborations for creators.</p>
+      <img className="logo" src="/logo.png" alt="The Social Atelier" />
+      <p className="lead">An invitation-only house of brand collaborations, experiences and events for creators.</p>
 
       {api.mode === 'demo' ? (
         <div className="stack">

@@ -55,7 +55,7 @@ export default function CollabDetail({ collab, profile, application, onClose, on
           {collab.category} · {collab.type}
         </span>
         <h2>{collab.title}</h2>
-        <p className="muted">📍 {[collab.location, collab.city].filter(Boolean).join(', ')}</p>
+        <p className="muted">{[collab.location, collab.city].filter(Boolean).join(', ')}</p>
       </div>
 
       {collab.description && <p>{collab.description}</p>}
