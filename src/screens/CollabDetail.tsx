@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api'
 import { errorMessage, formatBooking, formatDate, formatFollowers, googleCalendarUrl, todayISO } from '../format'
+import { DELIVERY_LABELS, deliveryStatus, parseLinks, platformOf } from '../delivery'
 import { openExternal } from '../links'
 import { COLLAB_TYPE_HINTS, type Application, type Collab, type Profile } from '../types'
 import { Badge, CollabImage, ErrorText, Sheet } from '../ui'
@@ -136,6 +137,7 @@ export default function CollabDetail({ collab, profile, application, calendarCon
               ) : (
                 <p className="muted">You're in! {collab.type === 'Walk-in' ? 'Visit any time during opening hours.' : 'The Social Atelier will be in touch with booking details.'}</p>
               )}
+              <ContentDue collab={collab} application={application} onChanged={onChanged} />
             </>
           )}
           {application.status === 'pending' && (
@@ -176,5 +178,92 @@ export default function CollabDetail({ collab, profile, application, calendarCon
       )}
       {!applying && <ErrorText error={error} />}
     </Sheet>
+  )
+}
+
+// Posting deadline and the creator's post links: the proof the brand is paying for.
+function ContentDue({ collab, application, onChanged }: { collab: Collab; application: Application; onChanged: () => void }) {
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const status = deliveryStatus(application)
+
+  if (status === 'no-show') {
+    return <p className="notice">You were marked as not attending this booking. If that's wrong, please contact The Social Atelier.</p>
+  }
+
+  const save = async (links: string[]) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.submitPosts(application.id, links)
+      setText('')
+      onChanged()
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const add = (e: React.FormEvent) => {
+    e.preventDefault()
+    const { links, invalid } = parseLinks(text)
+    if (invalid.length) return setError(`These don't look like links: ${invalid.join(', ')}`)
+    const all = [...new Set([...application.post_links, ...links])]
+    if (all.length > 10) return setError('You can add up to 10 links.')
+    save(all)
+  }
+
+  return (
+    <section className="content-due" data-delivery={status}>
+      <div className="card-top">
+        <span className="eyebrow">Your content</span>
+        <span className="badge" data-delivery={status}>
+          {DELIVERY_LABELS[status]}
+        </span>
+      </div>
+      {application.content_due && (
+        <p className="due-date">
+          {application.post_links.length ? 'Was due' : 'Post by'} {formatDate(application.content_due)}
+        </p>
+      )}
+      {collab.deliverables && <p className="muted small">What to post: {collab.deliverables}</p>}
+      {status === 'overdue' && <p className="error">Your post is overdue. Please add your links as soon as it's live.</p>}
+
+      {application.post_links.length > 0 && (
+        <ul className="submitted-links">
+          {application.post_links.map((url) => (
+            <li key={url}>
+              <a href={url} target="_blank" rel="noreferrer">
+                {platformOf(url)} ↗
+              </a>
+              <button className="link subtle" disabled={busy} onClick={() => save(application.post_links.filter((l) => l !== url))} aria-label={`Remove ${url}`}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form className="stack" onSubmit={add}>
+        <label>
+          {application.post_links.length ? 'Add more links' : 'Paste your post links'}
+          <textarea
+            id={`links-${application.id}`}
+            rows={2}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="instagram.com/reel/… one per line"
+            autoCapitalize="none"
+            autoCorrect="off"
+          />
+        </label>
+        <ErrorText error={error} />
+        <button className="primary" type="submit" disabled={busy || !text.trim()}>
+          {busy ? 'Saving…' : 'Submit links'}
+        </button>
+      </form>
+    </section>
   )
 }

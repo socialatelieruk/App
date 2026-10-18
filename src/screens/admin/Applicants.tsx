@@ -1,23 +1,31 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../api'
+import { addDays, DELIVERY_LABELS, deliveryStatus, platformOf, reliability } from '../../delivery'
 import { errorMessage, formatBooking, formatDate, formatFollowers, todayISO } from '../../format'
-import type { Application, ApplicationStatus, Collab, Schedule } from '../../types'
+import { reportUrl, shareLink } from '../../links'
+import type { Application, ApplicationStatus, Booking, BrandReport, Collab, DeliveryStats } from '../../types'
 import { Badge, Empty, ErrorText, Sheet, Spinner } from '../../ui'
+import { ReportView } from '../BrandReport'
 
 export default function Applicants({ collab, onClose, onEdit, onChanged }: { collab: Collab; onClose: () => void; onEdit: () => void; onChanged: () => void }) {
   const [apps, setApps] = useState<Application[] | null>(null)
+  const [stats, setStats] = useState<Record<string, DeliveryStats>>({})
   const [error, setError] = useState<string | null>(null)
   const [scheduling, setScheduling] = useState<string | null>(null) // application being accepted or re-timed
+  const [report, setReport] = useState<BrandReport | null>(null)
+  const [shareNote, setShareNote] = useState<string | null>(null)
 
   const load = useCallback(() => {
     api.listApplicants(collab.id).then(setApps, (e) => setError(errorMessage(e)))
+    api.getReliability().then(setStats, () => {})
   }, [collab.id])
 
   useEffect(load, [load])
 
-  const setStatus = async (id: string, status: ApplicationStatus, schedule?: Schedule | null) => {
+  const run = async (fn: () => Promise<unknown>) => {
+    setError(null)
     try {
-      await api.setApplicationStatus(id, status, schedule)
+      await fn()
       setScheduling(null)
       load()
       onChanged()
@@ -26,8 +34,42 @@ export default function Applicants({ collab, onClose, onEdit, onChanged }: { col
     }
   }
 
+  const setStatus = (id: string, status: ApplicationStatus, booking?: Booking) => run(() => api.setApplicationStatus(id, status, booking))
+
+  const share = async () => {
+    setShareNote(null)
+    try {
+      const how = await shareLink(reportUrl(await api.getReportToken(collab.id)), `${collab.brand} · Campaign report`)
+      if (how === 'copied') setShareNote('Report link copied. Paste it into your email or message to the brand.')
+    } catch (e) {
+      setError(errorMessage(e))
+    }
+  }
+
+  const preview = async () => {
+    try {
+      setReport(await api.getReport(await api.getReportToken(collab.id)))
+    } catch (e) {
+      setError(errorMessage(e))
+    }
+  }
+
   const live = apps?.filter((a) => a.status !== 'withdrawn') ?? []
-  const accepted = live.filter((a) => a.status === 'accepted').length
+  const accepted = live.filter((a) => a.status === 'accepted')
+  const counts = accepted.reduce<Record<string, number>>((c, a) => {
+    const s = deliveryStatus(a)
+    c[s] = (c[s] ?? 0) + 1
+    return c
+  }, {})
+
+  if (report) {
+    return (
+      <Sheet title="Brand report preview" onClose={() => setReport(null)}>
+        <p className="notice">This is what the brand sees. No-shows and contact details are left out.</p>
+        <ReportView report={report} />
+      </Sheet>
+    )
+  }
 
   return (
     <Sheet
@@ -40,8 +82,33 @@ export default function Applicants({ collab, onClose, onEdit, onChanged }: { col
       }
     >
       <p className="muted">
-        {collab.brand} · {accepted}/{collab.spots} spots filled · <Badge status={collab.status} />
+        {collab.brand} · {accepted.length}/{collab.spots} spots filled · <Badge status={collab.status} />
       </p>
+
+      {accepted.length > 0 && (
+        <section className="delivery-summary card">
+          <span className="eyebrow">Content delivery</span>
+          <div className="delivery-counts">
+            {(['posted', 'posted-late', 'due', 'overdue', 'no-show'] as const)
+              .filter((s) => counts[s])
+              .map((s) => (
+                <span key={s} className="delivery-count" data-delivery={s}>
+                  <strong>{counts[s]}</strong> {DELIVERY_LABELS[s]}
+                </span>
+              ))}
+          </div>
+          <div className="actions">
+            <button className="primary small" onClick={share}>
+              Share brand report
+            </button>
+            <button className="secondary small" onClick={preview}>
+              Preview
+            </button>
+          </div>
+          {shareNote && <p className="muted small">{shareNote}</p>}
+        </section>
+      )}
+
       <ErrorText error={error} />
       {!apps ? (
         <Spinner />
@@ -49,65 +116,103 @@ export default function Applicants({ collab, onClose, onEdit, onChanged }: { col
         <Empty>No applications yet.</Empty>
       ) : (
         <ul className="list">
-          {live.map((a) => (
-            <li key={a.id} className="card applicant">
-              <div className="card-top">
-                <strong>{a.profile?.full_name ?? 'Unknown'}</strong>
-                <Badge status={a.status} />
-              </div>
-              {a.profile && (
-                <div className="meta">
-                  {a.profile.instagram && (
-                    <a href={`https://instagram.com/${a.profile.instagram}`} target="_blank" rel="noreferrer">
-                      IG @{a.profile.instagram}
-                    </a>
-                  )}
-                  {a.profile.tiktok && (
-                    <a href={`https://tiktok.com/@${a.profile.tiktok}`} target="_blank" rel="noreferrer">
-                      TikTok @{a.profile.tiktok}
-                    </a>
-                  )}
-                  <span>{formatFollowers(a.profile.followers)} followers</span>
-                  <span>{a.profile.city}</span>
+          {live.map((a) => {
+            const rel = reliability(stats[a.user_id])
+            const delivery = a.status === 'accepted' ? deliveryStatus(a) : null
+            return (
+              <li key={a.id} className="card applicant">
+                <div className="card-top">
+                  <strong>{a.profile?.full_name ?? 'Unknown'}</strong>
+                  <Badge status={a.status} />
                 </div>
-              )}
-              {a.message && <p className="quote">“{a.message}”</p>}
-              <span className="muted small">
-                Applied {formatDate(a.created_at)}
-                {a.preferred_date && ` · wants ${formatDate(a.preferred_date)}`}
-                {a.profile?.email && ` · ${a.profile.email}`}
-              </span>
-              {a.status === 'accepted' && (
-                <p className="booked">{a.scheduled_start ? `Booked for ${formatBooking(a.scheduled_start, a.scheduled_end)}` : 'Accepted with no fixed time'}</p>
-              )}
+                <span className="reliability" data-tier={rel.tier} title={rel.detail}>
+                  Reliability {rel.label} <span className="muted">· {rel.detail}</span>
+                </span>
+                {a.profile && (
+                  <div className="meta">
+                    {a.profile.instagram && (
+                      <a href={`https://instagram.com/${a.profile.instagram}`} target="_blank" rel="noreferrer">
+                        IG @{a.profile.instagram}
+                      </a>
+                    )}
+                    {a.profile.tiktok && (
+                      <a href={`https://tiktok.com/@${a.profile.tiktok}`} target="_blank" rel="noreferrer">
+                        TikTok @{a.profile.tiktok}
+                      </a>
+                    )}
+                    <span>{formatFollowers(a.profile.followers)} followers</span>
+                    <span>{a.profile.city}</span>
+                  </div>
+                )}
+                {a.message && <p className="quote">“{a.message}”</p>}
+                <span className="muted small">
+                  Applied {formatDate(a.created_at)}
+                  {a.preferred_date && ` · wants ${formatDate(a.preferred_date)}`}
+                  {a.profile?.email && ` · ${a.profile.email}`}
+                </span>
 
-              {scheduling === a.id ? (
-                <ScheduleForm
-                  collab={collab}
-                  application={a}
-                  onConfirm={(schedule) => setStatus(a.id, 'accepted', schedule)}
-                  onCancel={() => setScheduling(null)}
-                />
-              ) : (
-                <div className="actions">
-                  {a.status !== 'accepted' ? (
-                    <button className="primary small" onClick={() => setScheduling(a.id)}>
-                      Accept
-                    </button>
-                  ) : (
-                    <button className="secondary small" onClick={() => setScheduling(a.id)}>
-                      Change time
-                    </button>
-                  )}
-                  {a.status !== 'declined' && (
-                    <button className="secondary small" onClick={() => setStatus(a.id, 'declined')}>
-                      Decline
-                    </button>
-                  )}
-                </div>
-              )}
-            </li>
-          ))}
+                {a.status === 'accepted' && (
+                  <div className="delivery">
+                    <p className="booked">{a.scheduled_start ? `Booked for ${formatBooking(a.scheduled_start, a.scheduled_end)}` : 'Accepted with no fixed time'}</p>
+                    <p className="delivery-line">
+                      <span className="badge" data-delivery={delivery!}>
+                        {DELIVERY_LABELS[delivery!]}
+                      </span>
+                      {a.content_due && delivery !== 'no-show' && <span className="muted small">Due {formatDate(a.content_due)}</span>}
+                      {a.posted_at && <span className="muted small">Posted {formatDate(a.posted_at.slice(0, 10))}</span>}
+                    </p>
+                    {a.post_links.length > 0 && (
+                      <div className="post-links">
+                        {a.post_links.map((url) => (
+                          <a key={url} className="post-link" href={url} target="_blank" rel="noreferrer">
+                            {platformOf(url)} ↗
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {scheduling === a.id ? (
+                  <ScheduleForm
+                    collab={collab}
+                    application={a}
+                    onConfirm={(booking) => setStatus(a.id, 'accepted', booking)}
+                    onCancel={() => setScheduling(null)}
+                  />
+                ) : (
+                  <div className="actions wrap">
+                    {a.status !== 'accepted' ? (
+                      <button className="primary small" onClick={() => setScheduling(a.id)}>
+                        Accept
+                      </button>
+                    ) : (
+                      <button className="secondary small" onClick={() => setScheduling(a.id)}>
+                        Change time
+                      </button>
+                    )}
+                    {a.status === 'accepted' &&
+                      (a.attendance === 'no_show' ? (
+                        <button className="secondary small" onClick={() => run(() => api.setAttendance(a.id, null))}>
+                          Undo no-show
+                        </button>
+                      ) : (
+                        a.post_links.length === 0 && (
+                          <button className="secondary small" onClick={() => run(() => api.setAttendance(a.id, 'no_show'))}>
+                            Mark no-show
+                          </button>
+                        )
+                      ))}
+                    {a.status !== 'declined' && (
+                      <button className="secondary small" onClick={() => setStatus(a.id, 'declined')}>
+                        Decline
+                      </button>
+                    )}
+                  </div>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
     </Sheet>
@@ -120,8 +225,8 @@ const durationLabel = (m: number) => (m < 60 ? `${m} min` : `${m / 60} hour${m =
 const localDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const localTime = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 
-// The confirmed booking time, which goes into the influencer's calendar.
-function ScheduleForm({ collab, application, onConfirm, onCancel }: { collab: Collab; application: Application; onConfirm: (s: Schedule | null) => void; onCancel: () => void }) {
+// The confirmed booking time, which goes into the influencer's calendar, and the posting deadline.
+function ScheduleForm({ collab, application, onConfirm, onCancel }: { collab: Collab; application: Application; onConfirm: (b: Booking) => void; onCancel: () => void }) {
   const existing = application.scheduled_start ? new Date(application.scheduled_start) : null
   const existingMinutes = existing && application.scheduled_end ? Math.round((new Date(application.scheduled_end).getTime() - existing.getTime()) / 60_000) : null
 
@@ -129,20 +234,26 @@ function ScheduleForm({ collab, application, onConfirm, onCancel }: { collab: Co
   const [date, setDate] = useState(existing ? localDate(existing) : (application.preferred_date ?? collab.event_date ?? todayISO()))
   const [time, setTime] = useState(existing ? localTime(existing) : '12:00')
   const [minutes, setMinutes] = useState(existingMinutes ?? (collab.type === 'Event' ? 180 : 90))
+  // Follows the visit date until the admin picks a deadline themselves.
+  const [dueEdited, setDueEdited] = useState(!!application.content_due)
+  const [due, setDue] = useState(application.content_due ?? '')
+  const contentDue = dueEdited ? due : addDays(timed ? date : todayISO(), collab.content_due_days)
   const [busy, setBusy] = useState(false)
   const id = application.id
 
   const confirm = (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
-    if (!timed) return onConfirm(null)
     const start = new Date(`${date}T${time}`)
-    onConfirm({ start: start.toISOString(), end: new Date(start.getTime() + minutes * 60_000).toISOString() })
+    onConfirm({
+      schedule: timed ? { start: start.toISOString(), end: new Date(start.getTime() + minutes * 60_000).toISOString() } : null,
+      contentDue: contentDue || null,
+    })
   }
 
   return (
     <form className="schedule stack" onSubmit={confirm}>
-      <span className="eyebrow">{application.status === 'accepted' ? 'Change booking time' : 'Confirm booking time'}</span>
+      <span className="eyebrow">{application.status === 'accepted' ? 'Change booking' : 'Confirm booking'}</span>
       {collab.type === 'Walk-in' && (
         <label className="toggle">
           <input id={`timed-${id}`} type="checkbox" checked={timed} onChange={(e) => setTimed(e.target.checked)} />
@@ -173,12 +284,25 @@ function ScheduleForm({ collab, application, onConfirm, onCancel }: { collab: Co
                 ))}
             </select>
           </label>
-          <p className="muted small">This goes straight into their calendar if they've connected Google Calendar.</p>
         </>
       )}
+      <label>
+        Content due by
+        <input
+          id={`due-${id}`}
+          type="date"
+          required
+          value={contentDue}
+          onChange={(e) => {
+            setDueEdited(true)
+            setDue(e.target.value)
+          }}
+        />
+      </label>
+      <p className="muted small">The visit goes into their Google Calendar if they've connected it. The deadline is when their post links are due.</p>
       <div className="actions">
         <button className="primary small" type="submit" disabled={busy}>
-          {application.status === 'accepted' ? 'Save time' : 'Accept'}
+          {application.status === 'accepted' ? 'Save' : 'Accept'}
         </button>
         <button className="secondary small" type="button" onClick={onCancel}>
           Cancel

@@ -1,3 +1,4 @@
+import { DELIVERY_LABELS, deliveryStatus } from '../delivery'
 import { formatBooking, formatDate } from '../format'
 import type { Application, Collab } from '../types'
 import { Badge, Empty } from '../ui'
@@ -31,8 +32,12 @@ export default function MyApplications({ applications, newIds, onOpen }: { appli
                         {newIds.has(a.id) && <span className="new-tag">New</span>}
                       </span>
                       <strong>{a.collab!.title}</strong>
-                      {a.status === 'accepted' && a.scheduled_start ? (
+                      {a.status === 'accepted' && a.scheduled_start && new Date(a.scheduled_start) > new Date() ? (
                         <span className="booked small">Booked for {formatBooking(a.scheduled_start, a.scheduled_end)}</span>
+                      ) : a.status === 'accepted' && a.posted_at ? (
+                        <span className="muted small">Posted {formatDate(a.posted_at.slice(0, 10))}</span>
+                      ) : a.status === 'accepted' && a.content_due && a.post_links.length === 0 && a.attendance !== 'no_show' ? (
+                        <span className="muted small">Post by {formatDate(a.content_due)}</span>
                       ) : (
                         <span className="muted small">
                           Applied {formatDate(a.created_at)}
@@ -40,7 +45,13 @@ export default function MyApplications({ applications, newIds, onOpen }: { appli
                         </span>
                       )}
                     </div>
-                    <Badge status={a.status} />
+                    {a.status === 'accepted' ? (
+                      <span className="badge" data-delivery={deliveryStatus(a)}>
+                        {DELIVERY_LABELS[deliveryStatus(a)]}
+                      </span>
+                    ) : (
+                      <Badge status={a.status} />
+                    )}
                   </button>
                 </li>
               ))}

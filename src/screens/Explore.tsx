@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { deliveryStatus } from '../delivery'
 import { formatBooking, todayISO } from '../format'
 import { CATEGORIES, COLLAB_TYPES, type Application, type Category, type Collab, type CollabType, type Profile } from '../types'
 import { Badge, CollabCard, Empty } from '../ui'
@@ -22,6 +23,8 @@ export default function Explore({ profile, collabs, applications, unseen, onOpen
   const cities = useMemo(() => [...new Set(open.map((c) => c.city))].sort(), [open])
   const appByCollab = new Map(applications.filter((a) => a.status !== 'withdrawn').map((a) => [a.collab_id, a]))
 
+  const overdue = applications.filter((a) => a.status === 'accepted' && a.collab && deliveryStatus(a) === 'overdue')
+
   const shown = open.filter((c) => (type === 'All' || c.type === type) && (category === 'All' || c.category === category) && (city === 'All' || c.city === city))
 
   return (
@@ -37,6 +40,12 @@ export default function Explore({ profile, collabs, applications, unseen, onOpen
           <span className="banner-title">{unseen.length === 1 ? `${unseen[0].collab!.brand} accepted you for ${unseen[0].collab!.title}` : 'Brands have accepted your applications'}</span>
           {unseen.length === 1 && unseen[0].scheduled_start && <span className="small">{formatBooking(unseen[0].scheduled_start, unseen[0].scheduled_end)}</span>}
           <span className="banner-link">View details</span>
+        </button>
+      )}
+
+      {overdue.length > 0 && (
+        <button className="notice overdue-notice" onClick={onShowAccepted}>
+          {overdue.length === 1 ? `Your post for ${overdue[0].collab!.brand} is overdue.` : `${overdue.length} posts are overdue.`} Add your links in My collabs.
         </button>
       )}
 

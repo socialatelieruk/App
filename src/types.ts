@@ -47,6 +47,7 @@ export interface Collab {
   spots: number
   event_date: string | null // YYYY-MM-DD, for events
   apply_by: string | null // YYYY-MM-DD
+  content_due_days: number // days after the visit that posts are due
   status: CollabStatus
   created_at: string
   application_count?: number
@@ -61,6 +62,38 @@ export interface Schedule {
   end: string
 }
 
+// What an admin confirms when accepting: the visit (if timed) and the posting deadline.
+export interface Booking {
+  schedule: Schedule | null
+  contentDue: string | null
+}
+
+// Per-influencer delivery record behind the reliability score.
+export interface DeliveryStats {
+  on_time: number
+  late: number
+  overdue: number
+  no_shows: number
+  upcoming: number
+}
+
+// The brand-facing report behind a collab's private link.
+export interface BrandReport {
+  collab: Pick<Collab, 'title' | 'brand' | 'type' | 'category' | 'city' | 'location' | 'image_url' | 'event_date' | 'deliverables'>
+  creators: {
+    name: string
+    instagram: string
+    tiktok: string
+    followers: number
+    city: string
+    visited: string | null
+    content_due: string | null
+    post_links: string[]
+    posted_at: string | null
+  }[]
+  generated_at: string
+}
+
 export interface Application {
   id: string
   collab_id: string
@@ -71,6 +104,10 @@ export interface Application {
   seen: boolean // false until the influencer has seen an acceptance
   scheduled_start: string | null // confirmed booking time (ISO), set when accepted
   scheduled_end: string | null
+  content_due: string | null // YYYY-MM-DD posting deadline
+  post_links: string[] // the creator's live posts
+  posted_at: string | null
+  attendance: 'attended' | 'no_show' | null
   created_at: string
   collab?: Collab
   profile?: Profile

@@ -1,4 +1,4 @@
-import type { Application, ApplicationStatus, Collab, CollabInput, Profile, ProfileInput, ProfileStatus, Role, Schedule } from '../types'
+import type { Application, ApplicationStatus, Booking, BrandReport, Collab, CollabInput, DeliveryStats, Profile, ProfileInput, ProfileStatus, Role } from '../types'
 
 export interface Api {
   mode: 'demo' | 'live'
@@ -27,6 +27,7 @@ export interface Api {
   apply(collabId: string, message: string, preferredDate: string | null): Promise<void>
   withdraw(applicationId: string): Promise<void>
   markSeen(applicationIds: string[]): Promise<void>
+  submitPosts(applicationId: string, links: string[]): Promise<void> // replaces the creator's post links
 
   // Push notifications: the phones to notify for the signed-in user
   registerDevice(token: string, platform: 'ios' | 'android'): Promise<void>
@@ -39,8 +40,14 @@ export interface Api {
 
   // Admin
   listApplicants(collabId: string): Promise<Application[]>
-  // schedule: the confirmed booking time; null clears it, undefined leaves it as is
-  setApplicationStatus(id: string, status: ApplicationStatus, schedule?: Schedule | null): Promise<void>
+  // booking: the confirmed visit and posting deadline; undefined leaves them as they are
+  setApplicationStatus(id: string, status: ApplicationStatus, booking?: Booking): Promise<void>
+  setAttendance(applicationId: string, attendance: 'attended' | 'no_show' | null): Promise<void>
+  getReliability(): Promise<Record<string, DeliveryStats>> // by influencer id
+  getReportToken(collabId: string): Promise<string> // creates the collab's private report link if needed
+
+  // Brand report: works without signing in
+  getReport(token: string): Promise<BrandReport | null>
   listInfluencers(): Promise<Profile[]>
   setInfluencerStatus(id: string, status: ProfileStatus): Promise<void>
 }

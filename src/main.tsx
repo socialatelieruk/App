@@ -8,9 +8,13 @@ import '@fontsource/jost/400.css'
 import '@fontsource/jost/500.css'
 import './index.css'
 import App from './App.tsx'
+import BrandReportPage from './screens/BrandReport.tsx'
+
+// Brands open a collab's report at ?report=<token>, without signing in.
+const reportToken = new URLSearchParams(window.location.search).get('report')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {reportToken ? <BrandReportPage token={reportToken} /> : <App />}
   </StrictMode>,
 )

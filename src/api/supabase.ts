@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Application, Collab, Profile } from '../types'
+import type { Application, BrandReport, Collab, DeliveryStats, Profile } from '../types'
 import type { Api } from './types'
 
 export function createSupabaseApi(url: string, anonKey: string): Api {
@@ -137,13 +137,38 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       await invoke('google-calendar', { action: 'disconnect' })
     },
 
+    async submitPosts(applicationId, links) {
+      check(await sb.from('applications').update({ post_links: links }).eq('id', applicationId))
+    },
+
     async listApplicants(collabId) {
       return check(await sb.from('applications').select('*, profile:profiles(*)').eq('collab_id', collabId).order('created_at')) as Application[]
     },
 
-    async setApplicationStatus(id, status, schedule) {
-      const booking = schedule === undefined ? {} : { scheduled_start: schedule?.start ?? null, scheduled_end: schedule?.end ?? null }
-      check(await sb.from('applications').update({ status, ...booking }).eq('id', id))
+    async setApplicationStatus(id, status, booking) {
+      const fields = booking
+        ? { scheduled_start: booking.schedule?.start ?? null, scheduled_end: booking.schedule?.end ?? null, content_due: booking.contentDue }
+        : {}
+      check(await sb.from('applications').update({ status, ...fields }).eq('id', id))
+    },
+
+    async setAttendance(applicationId, attendance) {
+      check(await sb.from('applications').update({ attendance }).eq('id', applicationId))
+    },
+
+    async getReliability() {
+      const rows = check(await sb.rpc('reliability_stats')) as ({ user_id: string } & DeliveryStats)[]
+      return Object.fromEntries(rows.map(({ user_id, ...stats }) => [user_id, stats]))
+    },
+
+    async getReportToken(collabId) {
+      const existing = check(await sb.from('report_links').select('token').eq('collab_id', collabId).maybeSingle()) as { token: string } | null
+      if (existing) return existing.token
+      return (check(await sb.from('report_links').insert({ collab_id: collabId }).select('token').single()) as { token: string }).token
+    },
+
+    async getReport(token) {
+      return check(await sb.rpc('collab_report', { report_token: token })) as BrandReport | null
     },
 
     async listInfluencers() {

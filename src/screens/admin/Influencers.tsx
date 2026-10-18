@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../api'
+import { reliability } from '../../delivery'
 import { errorMessage, formatDate, formatFollowers } from '../../format'
-import type { Profile, ProfileStatus } from '../../types'
+import type { DeliveryStats, Profile, ProfileStatus } from '../../types'
 import { Badge, Empty, ErrorText, Spinner } from '../../ui'
 
 export default function Influencers() {
   const [people, setPeople] = useState<Profile[] | null>(null)
   const [tab, setTab] = useState<ProfileStatus>('pending')
   const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<Record<string, DeliveryStats>>({})
 
   const load = useCallback(() => {
     api.listInfluencers().then(setPeople, (e) => setError(errorMessage(e)))
+    api.getReliability().then(setStats, () => {})
   }, [])
   useEffect(load, [load])
 
@@ -24,7 +27,10 @@ export default function Influencers() {
   }
 
   const count = (s: ProfileStatus) => people?.filter((p) => p.status === s).length ?? 0
-  const shown = people?.filter((p) => p.status === tab) ?? []
+  // Most reliable first, so the best creators are easy to pick for paying clients; new creators last.
+  const shown = (people?.filter((p) => p.status === tab) ?? []).sort(
+    (a, b) => (reliability(stats[b.id]).score ?? -1) - (reliability(stats[a.id]).score ?? -1),
+  )
 
   return (
     <>
@@ -51,6 +57,14 @@ export default function Influencers() {
                 <strong>{p.full_name || p.email}</strong>
                 <Badge status={p.status} />
               </div>
+              {(() => {
+                const rel = reliability(stats[p.id])
+                return (
+                  <span className="reliability" data-tier={rel.tier}>
+                    Reliability {rel.label} <span className="muted">· {rel.detail}</span>
+                  </span>
+                )
+              })()}
               <div className="meta">
                 {p.instagram && (
                   <a href={`https://instagram.com/${p.instagram}`} target="_blank" rel="noreferrer">

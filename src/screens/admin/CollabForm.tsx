@@ -19,6 +19,7 @@ const blank: CollabInput = {
   spots: 5,
   event_date: null,
   apply_by: null,
+  content_due_days: 7,
   status: 'open',
 }
 
@@ -128,6 +129,10 @@ export default function CollabForm({ collab, onClose, onSaved }: { collab?: Coll
             <input type="date" value={form.apply_by ?? ''} onChange={(e) => set('apply_by', e.target.value || null)} />
           </label>
         </div>
+        <label>
+          Content due (days after the visit)
+          <input type="number" min={0} max={60} required value={form.content_due_days} onChange={(e) => set('content_due_days', Number(e.target.value))} />
+        </label>
         <label>
           Image URL (optional)
           <input type="url" placeholder="https://…" value={form.image_url} onChange={(e) => set('image_url', e.target.value)} />

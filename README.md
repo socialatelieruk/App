@@ -42,6 +42,14 @@ Until Supabase is connected, the app runs in **demo mode** with sample collabs a
    ```
    Sign out and back in, and you'll see the admin tabs. Repeat for any team member.
 
+## Content delivery, brand reports and reliability
+
+**Content due.** Each collab has a posting window ("Content due: 7 days after the visit" by default, set in the collab form). When you accept a creator, the deadline is filled in from their visit date. You can change it there or later with **Change time**. Creators see "Post by …" on the collab and paste their live post links (Instagram, TikTok, YouTube and so on) once they're up. In each collab's applicant list you see every booked creator as **Posted**, **Posted late**, **Content due**, **Overdue** or **No-show**, with their post links. Use **Mark no-show** for anyone who didn't turn up.
+
+**Brand report.** In a collab's applicant list, tap **Share brand report** to send the brand a private link. It shows every creator's posts, follower counts and visit dates, with totals at the top. Tap **Preview** to see it first. The report updates live as creators add links, never shows emails or no-shows, and needs no sign-in. Report links open on the web version of the app. To switch that on once, go to **Settings → Pages** in GitHub and set **Source** to **GitHub Actions**. After that, every push publishes it to https://socialatelieruk.github.io/App/.
+
+**Reliability score.** Every creator gets a score from their history: on-time posts count fully, late posts count three-quarters, and overdue posts and no-shows count against them. Anyone with a no-show or a score under 60% is flagged **At risk**. The score appears next to each applicant and on the Influencers screen, which lists the most reliable creators first. Creators never see their own score.
+
 ## Notifications and Google Calendar
 
 When you accept an influencer, you pick the confirmed **date, time and length** of their booking. Walk-ins can be accepted with no fixed time. You can change the time later with **Change time**. The influencer is then told:

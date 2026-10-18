@@ -32,6 +32,7 @@ create table public.collabs (
   spots integer not null default 1,
   event_date date,
   apply_by date,
+  content_due_days integer not null default 7 check (content_due_days >= 0), -- days after the visit to post by
   status text not null default 'open' check (status in ('open', 'closed')),
   created_at timestamptz not null default now()
 );
@@ -47,6 +48,10 @@ create table public.applications (
   scheduled_start timestamptz, -- confirmed booking time, set by an admin when accepting
   scheduled_end timestamptz,
   google_event_id text, -- the influencer's Google Calendar event for this booking
+  content_due date, -- posting deadline, set by an admin when accepting
+  post_links text[] not null default '{}' check (cardinality(post_links) <= 10), -- the creator's live posts
+  posted_at timestamptz, -- when the first post link was added
+  attendance text check (attendance in ('attended', 'no_show')), -- set by an admin
   created_at timestamptz not null default now(),
   unique (collab_id, user_id),
   check (scheduled_end is null or scheduled_end > scheduled_start)
@@ -63,6 +68,14 @@ create table public.device_tokens (
 );
 
 create index on public.device_tokens (user_id);
+
+-- Private link for each collab's brand report. Admins only; brands open the
+-- report through collab_report() with the token.
+create table public.report_links (
+  collab_id uuid primary key references public.collabs on delete cascade,
+  token uuid not null unique default gen_random_uuid(),
+  created_at timestamptz not null default now()
+);
 
 -- Influencers' Google Calendar connections. Only the server reads this.
 create table public.google_calendar_links (
@@ -127,10 +140,25 @@ begin
       and not (new.status = 'withdrawn' or (old.status = 'withdrawn' and new.status = 'pending')) then
       raise exception 'Not allowed';
     end if;
-    -- Booking times come from admins; calendar event ids from the server.
+    -- Booking times, deadlines and attendance come from admins; calendar event ids from the server.
     new.scheduled_start := old.scheduled_start;
     new.scheduled_end := old.scheduled_end;
     new.google_event_id := old.google_event_id;
+    new.content_due := old.content_due;
+    new.attendance := old.attendance;
+    -- Creators add post links only once accepted, and not after a no-show.
+    if new.post_links is distinct from old.post_links
+      and (old.status <> 'accepted' or old.attendance is not distinct from 'no_show') then
+      raise exception 'Not allowed';
+    end if;
+  end if;
+  if exists (select 1 from unnest(new.post_links) link where link !~ '^https?://[^[:space:]]+$') then
+    raise exception 'Post links must be web addresses starting with https://';
+  end if;
+  if cardinality(new.post_links) = 0 then
+    new.posted_at := null;
+  elsif cardinality(old.post_links) = 0 then
+    new.posted_at := now();
   end if;
   if new.status = 'accepted' and old.status <> 'accepted' then
     new.seen := false;
@@ -164,6 +192,51 @@ language sql security definer set search_path = public as $$
   delete from device_tokens where token = device_token and user_id = auth.uid();
 $$;
 
+-- Delivery record per influencer, for their reliability score (admins only).
+create function public.reliability_stats()
+returns table (user_id uuid, on_time int, late int, overdue int, no_shows int, upcoming int)
+language sql stable security definer set search_path = public as $$
+  select a.user_id,
+    count(*) filter (where a.attendance is distinct from 'no_show' and cardinality(a.post_links) > 0
+      and (a.content_due is null or (a.posted_at at time zone 'Europe/London')::date <= a.content_due))::int,
+    count(*) filter (where a.attendance is distinct from 'no_show' and cardinality(a.post_links) > 0
+      and (a.posted_at at time zone 'Europe/London')::date > a.content_due)::int,
+    count(*) filter (where a.attendance is distinct from 'no_show' and cardinality(a.post_links) = 0
+      and a.content_due < (now() at time zone 'Europe/London')::date)::int,
+    count(*) filter (where a.attendance = 'no_show')::int,
+    count(*) filter (where a.attendance is distinct from 'no_show' and cardinality(a.post_links) = 0
+      and (a.content_due is null or a.content_due >= (now() at time zone 'Europe/London')::date))::int
+  from applications a
+  where a.status = 'accepted' and is_admin()
+  group by a.user_id;
+$$;
+
+revoke execute on function public.reliability_stats() from public, anon;
+grant execute on function public.reliability_stats() to authenticated;
+
+-- The brand report behind a collab's private link. Anyone with the link can
+-- read it, so it leaves out emails, no-shows and anything internal.
+create function public.collab_report(report_token uuid) returns json
+language sql stable security definer set search_path = public as $$
+  select json_build_object(
+    'collab', json_build_object(
+      'title', c.title, 'brand', c.brand, 'type', c.type, 'category', c.category, 'city', c.city,
+      'location', c.location, 'image_url', c.image_url, 'event_date', c.event_date, 'deliverables', c.deliverables),
+    'creators', coalesce((
+      select json_agg(json_build_object(
+          'name', p.full_name, 'instagram', p.instagram, 'tiktok', p.tiktok, 'followers', p.followers, 'city', p.city,
+          'visited', a.scheduled_start, 'content_due', a.content_due, 'post_links', a.post_links, 'posted_at', a.posted_at)
+        order by a.posted_at nulls last, p.full_name)
+      from applications a join profiles p on p.id = a.user_id
+      where a.collab_id = c.id and a.status = 'accepted' and a.attendance is distinct from 'no_show'
+    ), '[]'::json),
+    'generated_at', now())
+  from report_links r join collabs c on c.id = r.collab_id
+  where r.token = report_token;
+$$;
+
+grant execute on function public.collab_report(uuid) to anon, authenticated;
+
 -- Which Google account the signed-in influencer has connected, if any.
 create function public.my_calendar_link() returns table (email text)
 language sql stable security definer set search_path = public as $$
@@ -185,6 +258,7 @@ alter table public.collabs enable row level security;
 alter table public.applications enable row level security;
 alter table public.device_tokens enable row level security; -- no policies: only the functions above and the server touch it
 alter table public.google_calendar_links enable row level security; -- no policies: server only
+alter table public.report_links enable row level security;
 
 create policy "Read own profile or admin reads all" on public.profiles
   for select to authenticated using (id = auth.uid() or is_admin());
@@ -199,6 +273,9 @@ create policy "Admins update collabs" on public.collabs
   for update to authenticated using (is_admin());
 create policy "Admins delete collabs" on public.collabs
   for delete to authenticated using (is_admin());
+
+create policy "Admins manage report links" on public.report_links
+  for all to authenticated using (is_admin()) with check (is_admin());
 
 create policy "Read own applications or admin reads all" on public.applications
   for select to authenticated using (user_id = auth.uid() or is_admin());
