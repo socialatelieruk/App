@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'uk.socialatelier.app',
-  appName: 'Social Atelier',
+  appName: 'The Social Atelier',
   webDir: 'dist',
   plugins: {
     PushNotifications: {

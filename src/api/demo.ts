@@ -3,7 +3,7 @@ import type { Api } from './types'
 
 // Demo mode keeps everything in this browser/device so the app can be tried
 // before a Supabase project is connected.
-const KEY = 'demo.v2'
+const KEY = 'demo.v3'
 
 interface DemoState {
   userId: string | null
@@ -17,6 +17,12 @@ const inDays = (n: number) => {
   const d = new Date()
   d.setDate(d.getDate() + n)
   return d.toISOString().slice(0, 10)
+}
+const at = (days: number, hour: number) => {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  d.setHours(hour, 0, 0, 0)
+  return d.toISOString()
 }
 
 function seed(): DemoState {
@@ -51,7 +57,7 @@ function seed(): DemoState {
   return {
     userId: null,
     profiles: [
-      profile({ id: 'demo-admin', full_name: 'Social Atelier', role: 'admin' }),
+      profile({ id: 'demo-admin', full_name: 'The Social Atelier', role: 'admin' }),
       profile({ id: 'demo-influencer', full_name: 'Maya Collins', instagram: 'mayaeats', tiktok: 'mayaeats', followers: 24500, bio: 'London food & lifestyle. Brunch enthusiast.' }),
       profile({ id: 'demo-2', full_name: 'Jordan Reid', instagram: 'jordanstyle', followers: 61200, bio: 'Menswear and travel.' }),
       profile({ id: 'demo-3', full_name: 'Priya Shah', instagram: 'priyaglow', tiktok: 'priyaglow', followers: 8900, status: 'pending', bio: 'Skincare reviews and GRWM.' }),
@@ -126,8 +132,8 @@ function seed(): DemoState {
       }),
     ],
     applications: [
-      { id: 'a1', collab_id: 'c3', user_id: 'demo-influencer', message: 'Would love to cover the launch!', preferred_date: null, status: 'accepted', seen: false, created_at: now() },
-      { id: 'a2', collab_id: 'c1', user_id: 'demo-2', message: 'Brunch fan here, happy to do a Reel.', preferred_date: inDays(5), status: 'pending', seen: true, created_at: now() },
+      { id: 'a1', collab_id: 'c3', user_id: 'demo-influencer', message: 'Would love to cover the launch!', preferred_date: null, status: 'accepted', seen: false, scheduled_start: at(10, 19), scheduled_end: at(10, 22), created_at: now() },
+      { id: 'a2', collab_id: 'c1', user_id: 'demo-2', message: 'Brunch fan here, happy to do a Reel.', preferred_date: inDays(5), status: 'pending', seen: true, scheduled_start: null, scheduled_end: null, created_at: now() },
     ],
   }
 }
@@ -229,7 +235,18 @@ export function createDemoApi(): Api {
       if (existing) {
         Object.assign(existing, { message, preferred_date: preferredDate, status: 'pending', seen: true })
       } else {
-        state.applications.push({ id: crypto.randomUUID(), collab_id: collabId, user_id: profile.id, message, preferred_date: preferredDate, status: 'pending', seen: true, created_at: now() })
+        state.applications.push({
+          id: crypto.randomUUID(),
+          collab_id: collabId,
+          user_id: profile.id,
+          message,
+          preferred_date: preferredDate,
+          status: 'pending',
+          seen: true,
+          scheduled_start: null,
+          scheduled_end: null,
+          created_at: now(),
+        })
       }
       persist()
     },
@@ -245,14 +262,30 @@ export function createDemoApi(): Api {
     // Demo mode has no server to send push notifications from.
     async registerDevice() {},
     async unregisterDevice() {},
+    async getCalendarEmail() {
+      return null
+    },
+    connectCalendar: async () => {
+      throw new Error('Demo mode: Google Calendar connects once Supabase and Google are set up. You can still use “Add to Google Calendar” on an accepted collab.')
+    },
+    async disconnectCalendar() {},
 
     async listApplicants(collabId) {
       await tick()
       return state.applications.filter((a) => a.collab_id === collabId).map((a) => ({ ...a, profile: state.profiles.find((p) => p.id === a.user_id) }))
     },
-    async setApplicationStatus(id, status) {
+    async setApplicationStatus(id, status, schedule) {
       // Mirrors the database: a new acceptance is unseen until the influencer opens it.
-      state.applications = state.applications.map((a) => (a.id === id ? { ...a, status, seen: status === 'accepted' && a.status !== 'accepted' ? false : a.seen } : a))
+      state.applications = state.applications.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              status,
+              seen: status === 'accepted' && a.status !== 'accepted' ? false : a.seen,
+              ...(schedule === undefined ? {} : { scheduled_start: schedule?.start ?? null, scheduled_end: schedule?.end ?? null }),
+            }
+          : a,
+      )
       persist()
     },
     async listInfluencers() {

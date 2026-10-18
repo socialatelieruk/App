@@ -1,7 +1,7 @@
--- Social Atelier collabs: run this once in Supabase → SQL Editor → New query.
+-- The Social Atelier collabs: run this once in Supabase → SQL Editor → New query.
 
 -- Profiles: one per signed-up user. New influencers start as 'pending'
--- until Social Atelier approves them.
+-- until The Social Atelier approves them.
 create table public.profiles (
   id uuid primary key references auth.users on delete cascade,
   email text not null default '',
@@ -44,8 +44,12 @@ create table public.applications (
   preferred_date date,
   status text not null default 'pending' check (status in ('pending', 'accepted', 'declined', 'withdrawn')),
   seen boolean not null default true, -- false until the influencer has seen their acceptance
+  scheduled_start timestamptz, -- confirmed booking time, set by an admin when accepting
+  scheduled_end timestamptz,
+  google_event_id text, -- the influencer's Google Calendar event for this booking
   created_at timestamptz not null default now(),
-  unique (collab_id, user_id)
+  unique (collab_id, user_id),
+  check (scheduled_end is null or scheduled_end > scheduled_start)
 );
 
 create index on public.applications (user_id);
@@ -59,6 +63,14 @@ create table public.device_tokens (
 );
 
 create index on public.device_tokens (user_id);
+
+-- Influencers' Google Calendar connections. Only the server reads this.
+create table public.google_calendar_links (
+  user_id uuid primary key references public.profiles on delete cascade,
+  email text not null default '',
+  refresh_token text not null,
+  connected_at timestamptz not null default now()
+);
 
 -- Helpers ------------------------------------------------------------------
 
@@ -115,6 +127,10 @@ begin
       and not (new.status = 'withdrawn' or (old.status = 'withdrawn' and new.status = 'pending')) then
       raise exception 'Not allowed';
     end if;
+    -- Booking times come from admins; calendar event ids from the server.
+    new.scheduled_start := old.scheduled_start;
+    new.scheduled_end := old.scheduled_end;
+    new.google_event_id := old.google_event_id;
   end if;
   if new.status = 'accepted' and old.status <> 'accepted' then
     new.seen := false;
@@ -148,6 +164,15 @@ language sql security definer set search_path = public as $$
   delete from device_tokens where token = device_token and user_id = auth.uid();
 $$;
 
+-- Which Google account the signed-in influencer has connected, if any.
+create function public.my_calendar_link() returns table (email text)
+language sql stable security definer set search_path = public as $$
+  select email from google_calendar_links where user_id = auth.uid();
+$$;
+
+revoke execute on function public.my_calendar_link() from public, anon;
+grant execute on function public.my_calendar_link() to authenticated;
+
 revoke execute on function public.register_device(text, text) from public, anon;
 revoke execute on function public.unregister_device(text) from public, anon;
 grant execute on function public.register_device(text, text) to authenticated;
@@ -159,6 +184,7 @@ alter table public.profiles enable row level security;
 alter table public.collabs enable row level security;
 alter table public.applications enable row level security;
 alter table public.device_tokens enable row level security; -- no policies: only the functions above and the server touch it
+alter table public.google_calendar_links enable row level security; -- no policies: server only
 
 create policy "Read own profile or admin reads all" on public.profiles
   for select to authenticated using (id = auth.uid() or is_admin());

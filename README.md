@@ -1,6 +1,6 @@
-# Social Atelier
+# The Social Atelier
 
-An invite-only collaborations app for iPhone and Android. Influencers sign up, Social Atelier approves their profile, and approved influencers browse gifted collabs and apply in one tap. Social Atelier posts the collabs, reviews applicants and accepts or declines them, all from inside the same app.
+An invite-only collaborations app for iPhone and Android. Influencers sign up, The Social Atelier approves their profile, and approved influencers browse gifted collabs and apply in one tap. The Social Atelier posts the collabs, reviews applicants and accepts or declines them, all from inside the same app.
 
 **Influencers can**
 - create an account and submit their profile (Instagram, TikTok, follower count, city, bio) for review
@@ -9,7 +9,7 @@ An invite-only collaborations app for iPhone and Android. Influencers sign up, S
 - track their applications (waiting, accepted, not this time) and withdraw a pending one
 - edit their profile and delete their account
 
-**Social Atelier admins can**
+**The Social Atelier admins can**
 - post, edit, close and delete collabs (brand, offer, deliverables, follower minimum, spots, dates, image)
 - see everyone who applied for a collab, with links to their Instagram/TikTok, and accept or decline them
 - approve or reject new influencers
@@ -19,11 +19,11 @@ Influencers can't apply until they're approved, can't apply below a collab's fol
 It's a React app wrapped as a native app with [Capacitor](https://capacitorjs.com). Data and logins are stored in [Supabase](https://supabase.com).
 
 - App ID / bundle ID: `uk.socialatelier.app`
-- App name: `Social Atelier` (change `appName` in `capacitor.config.ts`, then `npx cap sync`)
+- App name: `The Social Atelier` (change `appName` in `capacitor.config.ts`, then `npx cap sync`)
 
 ## Demo mode
 
-Until Supabase is connected, the app runs in **demo mode** with sample collabs and influencers stored on the device. The sign-in screen offers "Try as an influencer" and "Try as Social Atelier (admin)". Don't submit a demo-mode build to the stores.
+Until Supabase is connected, the app runs in **demo mode** with sample collabs and influencers stored on the device. The sign-in screen offers "Try as an influencer" and "Try as The Social Atelier (admin)". Don't submit a demo-mode build to the stores.
 
 ## Connecting Supabase (do this first)
 
@@ -37,39 +37,47 @@ Until Supabase is connected, the app runs in **demo mode** with sample collabs a
 6. Under **Authentication → Sign In / Providers → Email**, decide on **Confirm email**. With it on, new users must click a link in their email before they can sign in. Turning it off makes sign-up smoother in the app.
 7. Make yourself an admin: sign up in the app with your email, then run this in the SQL Editor:
    ```sql
-   update profiles set role = 'admin', status = 'approved', full_name = 'Social Atelier'
+   update profiles set role = 'admin', status = 'approved', full_name = 'The Social Atelier'
    where email = 'you@example.com';
    ```
    Sign out and back in, and you'll see the admin tabs. Repeat for any team member.
 
-## Notifications
+## Notifications and Google Calendar
 
-When you accept an influencer, they're told in two ways:
+When you accept an influencer, you pick the confirmed **date, time and length** of their booking. Walk-ins can be accepted with no fixed time. You can change the time later with **Change time**. The influencer is then told:
 
-- **In the app** (works as soon as Supabase is connected): a gold dot on **My collabs**, a "You're in" banner on Explore, and a **New** tag on the accepted collab.
-- **On their phone's lock screen** (push notification): "You're in. *Brand* accepted you for *Collab*." Tapping it opens My collabs. This needs the one-off setup below. Until then the app works normally without it.
+- **In the app** (works as soon as Supabase is connected): a gold dot on **My collabs**, a "You're in" banner on Explore, and a **New** tag on the accepted collab with its booked time. They also get an **Add to Google Calendar** button that pre-fills the event.
+- **On their phone's lock screen** (push notification): "You're in. *Brand* accepted you for *Collab* on *Sat 24 Oct, 13:00*." Tapping it opens My collabs.
+- **In their Google Calendar, automatically**, if they've tapped **Connect Google Calendar** in their Profile. The event has the brand, collab, address, the date and time you set, and what they get and post. Changing the time moves the event. Declining them, or deleting the collab, removes it.
 
-All the keys below go in GitHub under **Settings → Secrets and variables → Actions**.
+Push notifications and Google Calendar need the one-off setup below. Until then the app works normally without them. All keys go in GitHub under **Settings → Secrets and variables → Actions**.
 
-**1. Let GitHub deploy the notification sender to Supabase**
+**1. Let GitHub deploy the server functions to Supabase**
 - `SUPABASE_PROJECT_REF`: the ID in your Supabase project URL (`https://<this part>.supabase.co`)
 - `SUPABASE_ACCESS_TOKEN`: create one at supabase.com → Account → Access Tokens
-- `WEBHOOK_SECRET`: any long random password you make up (it stops anyone else triggering notifications)
+- `WEBHOOK_SECRET`: any long random password you make up. It stops anyone else triggering notifications or calendar connections.
 
-**2. Android (Firebase, free)**
+**2. Android push (Firebase, free)**
 1. At [console.firebase.google.com](https://console.firebase.google.com), create a project, then add an **Android app** with package name `uk.socialatelier.app`.
 2. Download `google-services.json` and add its full contents as the secret `GOOGLE_SERVICES_JSON`.
 3. In Firebase, go to **Project settings → Service accounts → Generate new private key**. Add the downloaded file's full contents as the secret `FIREBASE_SERVICE_ACCOUNT`.
 
-**3. iPhone (Apple push key)**
+**3. iPhone push (Apple push key)**
 1. At [developer.apple.com](https://developer.apple.com/account/resources/authkeys/list), go to **Keys → +**, tick **Apple Push Notifications service (APNs)**, and download the `.p8` file. This is a different key from the App Store Connect one.
 2. Add the secrets `APNS_KEY_P8` (the full contents of the `.p8` file) and `APNS_KEY_ID` (the key's ID). `APPLE_TEAM_ID` is already set if you followed the App Store steps.
 
-**4. Deploy and connect**
-1. In GitHub, go to **Actions → Deploy Supabase function → Run workflow**.
+**4. Google Calendar (Google Cloud, free)**
+1. At [console.cloud.google.com](https://console.cloud.google.com), pick your Firebase project (or create one) and enable the **Google Calendar API** under **APIs & Services → Library**.
+2. Under **APIs & Services → OAuth consent screen**, set it up as **External**. Use the app name "The Social Atelier", add your logo, support email and privacy policy link, and add the scope `.../auth/calendar.events`.
+3. Under **Credentials → Create credentials → OAuth client ID**, choose **Web application**. Add this as an authorised redirect URI: `https://<your project ref>.supabase.co/functions/v1/google-calendar/callback`
+4. Add the client ID and secret as the secrets `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+5. **Before launch, publish the consent screen and submit it for Google's verification.** Calendar access is a "sensitive" permission. While the screen is in **Testing**, only people you add as test users (up to 100) can connect, and their connection lapses after 7 days. Verification is free and usually takes a few days to a few weeks. Google will ask for your privacy policy and a short screen recording of the Connect flow.
+
+**5. Deploy and connect**
+1. In GitHub, go to **Actions → Deploy Supabase functions → Run workflow**.
 2. In Supabase, go to **Database → Webhooks → Create a new hook**:
-   - Table: `applications`. Events: **Update** only.
-   - Type: **Supabase Edge Functions**, function `notify-accepted`, method POST.
+   - Table: `applications`. Events: **Update** and **Delete**.
+   - Type: **Supabase Edge Functions**, function `on-application-change`, method POST.
    - Add an HTTP header `x-webhook-secret` with the same value as your `WEBHOOK_SECRET`.
 3. Re-run the **Android build** and **iOS build** workflows so the apps include push. The app asks influencers for permission to send notifications the first time they open it.
 

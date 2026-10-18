@@ -1,4 +1,4 @@
-name: Deploy Supabase function
+name: Deploy Supabase functions
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
         with:
           version: 2.119.0
 
-      - name: Copy push notification keys to the function
+      - name: Copy notification and calendar keys to the functions
         if: steps.check.outputs.ready == 'true'
         env:
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
@@ -37,15 +37,20 @@ jobs:
           APNS_KEY_P8: ${{ secrets.APNS_KEY_P8 }}
           APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: |
           args=()
-          for name in WEBHOOK_SECRET FIREBASE_SERVICE_ACCOUNT APNS_KEY_P8 APNS_KEY_ID APPLE_TEAM_ID; do
+          for name in WEBHOOK_SECRET FIREBASE_SERVICE_ACCOUNT APNS_KEY_P8 APNS_KEY_ID APPLE_TEAM_ID GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
             if [ -n "${!name}" ]; then args+=("$name=${!name}"); fi
           done
           if [ ${#args[@]} -gt 0 ]; then
             supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" "${args[@]}"
           fi
 
-      - name: Deploy notify-accepted
+      # --no-verify-jwt: each function checks its own caller (webhook secret, Google's redirect, or the user's session).
+      - name: Deploy functions
         if: steps.check.outputs.ready == 'true'
-        run: supabase functions deploy notify-accepted --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+        run: |
+          supabase functions deploy on-application-change --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          supabase functions deploy google-calendar --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt

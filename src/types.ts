@@ -56,6 +56,11 @@ export type CollabInput = Omit<Collab, 'id' | 'created_at' | 'application_count'
 
 export type ApplicationStatus = 'pending' | 'accepted' | 'declined' | 'withdrawn'
 
+export interface Schedule {
+  start: string // ISO date-time
+  end: string
+}
+
 export interface Application {
   id: string
   collab_id: string
@@ -64,6 +69,8 @@ export interface Application {
   preferred_date: string | null
   status: ApplicationStatus
   seen: boolean // false until the influencer has seen an acceptance
+  scheduled_start: string | null // confirmed booking time (ISO), set when accepted
+  scheduled_end: string | null
   created_at: string
   collab?: Collab
   profile?: Profile

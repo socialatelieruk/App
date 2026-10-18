@@ -1,4 +1,4 @@
-import { formatDate } from '../format'
+import { formatBooking, formatDate } from '../format'
 import type { Application, Collab } from '../types'
 import { Badge, Empty } from '../ui'
 
@@ -31,10 +31,14 @@ export default function MyApplications({ applications, newIds, onOpen }: { appli
                         {newIds.has(a.id) && <span className="new-tag">New</span>}
                       </span>
                       <strong>{a.collab!.title}</strong>
-                      <span className="muted small">
-                        Applied {formatDate(a.created_at)}
-                        {a.preferred_date && ` · for ${formatDate(a.preferred_date)}`}
-                      </span>
+                      {a.status === 'accepted' && a.scheduled_start ? (
+                        <span className="booked small">Booked for {formatBooking(a.scheduled_start, a.scheduled_end)}</span>
+                      ) : (
+                        <span className="muted small">
+                          Applied {formatDate(a.created_at)}
+                          {a.preferred_date && ` · for ${formatDate(a.preferred_date)}`}
+                        </span>
+                      )}
                     </div>
                     <Badge status={a.status} />
                   </button>

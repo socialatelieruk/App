@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api'
-import { errorMessage, formatDate, formatFollowers, todayISO } from '../format'
+import { errorMessage, formatBooking, formatDate, formatFollowers, googleCalendarUrl, todayISO } from '../format'
+import { openExternal } from '../links'
 import { COLLAB_TYPE_HINTS, type Application, type Collab, type Profile } from '../types'
 import { Badge, CollabImage, ErrorText, Sheet } from '../ui'
 
@@ -8,11 +9,12 @@ interface Props {
   collab: Collab
   profile: Profile
   application?: Application
+  calendarConnected: boolean
   onClose: () => void
   onChanged: () => void
 }
 
-export default function CollabDetail({ collab, profile, application, onClose, onChanged }: Props) {
+export default function CollabDetail({ collab, profile, application, calendarConnected, onClose, onChanged }: Props) {
   const [applying, setApplying] = useState(false)
   const [message, setMessage] = useState('')
   const [date, setDate] = useState('')
@@ -102,7 +104,40 @@ export default function CollabDetail({ collab, profile, application, onClose, on
           <p>
             Your application: <Badge status={application.status} />
           </p>
-          {application.status === 'accepted' && <p className="muted">You're in! Social Atelier will be in touch with booking details.</p>}
+          {application.status === 'accepted' && (
+            <>
+              {application.scheduled_start ? (
+                <>
+                  <p className="booked">Booked for {formatBooking(application.scheduled_start, application.scheduled_end)}</p>
+                  {calendarConnected ? (
+                    <p className="muted small">This booking is in your Google Calendar.</p>
+                  ) : (
+                    <>
+                      <button
+                        className="secondary"
+                        onClick={() =>
+                          openExternal(
+                            googleCalendarUrl(
+                              `${collab.brand} · ${collab.title}`,
+                              [collab.offer && `You get: ${collab.offer}`, collab.deliverables && `You post: ${collab.deliverables}`, 'Booked through The Social Atelier.'].filter(Boolean).join('\n'),
+                              [collab.location, collab.city].filter(Boolean).join(', '),
+                              application.scheduled_start!,
+                              application.scheduled_end,
+                            ),
+                          )
+                        }
+                      >
+                        Add to Google Calendar
+                      </button>
+                      <p className="muted small">Connect Google Calendar in your Profile to add bookings automatically.</p>
+                    </>
+                  )}
+                </>
+              ) : (
+                <p className="muted">You're in! {collab.type === 'Walk-in' ? 'Visit any time during opening hours.' : 'The Social Atelier will be in touch with booking details.'}</p>
+              )}
+            </>
+          )}
           {application.status === 'pending' && (
             <button className="secondary" disabled={busy} onClick={() => run(() => api.withdraw(application.id))}>
               Withdraw application

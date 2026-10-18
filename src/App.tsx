@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
+import { onBrowserClosed } from './links'
 import { startPush } from './push'
 import { errorMessage } from './format'
 import Account from './screens/Account'
@@ -56,7 +57,7 @@ function SignedIn() {
       <div className="app">
         <header className="page-header">
           <h1>Tell us about you</h1>
-          <p className="muted">Social Atelier reviews every profile so brands get the right creators. This takes 30 seconds.</p>
+          <p className="muted">The Social Atelier reviews every profile so brands get the right creators. This takes 30 seconds.</p>
         </header>
         <ProfileForm profile={profile} onSaved={setProfile} submitLabel="Submit for review" />
       </div>
@@ -106,11 +107,19 @@ function InfluencerApp({ profile, onProfile }: { profile: Profile; onProfile: (p
     api.listMyApplications().then((apps) => setApplications(tabRef.current === 'mine' ? seeAccepted(apps) : apps), () => {})
   }, [seeAccepted])
 
+  // The connected Google account; re-checked when the influencer returns from Google's consent page.
+  const [calendarEmail, setCalendarEmail] = useState<string | null>(null)
+  const reloadCalendar = useCallback(() => {
+    api.getCalendarEmail().then(setCalendarEmail, () => {})
+  }, [])
+  useEffect(() => onBrowserClosed(reloadCalendar), [reloadCalendar])
+
   // Refresh on every tab change so approvals and acceptances show up without signing out.
   useEffect(() => {
     reloadApps()
+    reloadCalendar()
     api.getMyProfile().then((p) => p && onProfile(p), () => {})
-  }, [tab, onProfile, reloadApps])
+  }, [tab, onProfile, reloadApps, reloadCalendar])
 
   const changeTab = (t: InfluencerTab) => {
     if (t !== 'mine') setJustSeen(new Set())
@@ -145,7 +154,7 @@ function InfluencerApp({ profile, onProfile }: { profile: Profile; onProfile: (p
         ) : tab === 'mine' ? (
           <MyApplications applications={applications} newIds={justSeen} onOpen={setOpen} />
         ) : (
-          <Account profile={profile} onProfile={onProfile} />
+          <Account profile={profile} onProfile={onProfile} calendarEmail={calendarEmail} onCalendarChanged={reloadCalendar} />
         )}
       </main>
 
@@ -165,6 +174,7 @@ function InfluencerApp({ profile, onProfile }: { profile: Profile; onProfile: (p
           collab={open}
           profile={profile}
           application={applications.find((a) => a.collab_id === open.id)}
+          calendarConnected={!!calendarEmail}
           onClose={() => setOpen(null)}
           onChanged={() => {
             reloadApps()

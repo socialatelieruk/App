@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { todayISO } from '../format'
+import { formatBooking, todayISO } from '../format'
 import { CATEGORIES, COLLAB_TYPES, type Application, type Category, type Collab, type CollabType, type Profile } from '../types'
 import { Badge, CollabCard, Empty } from '../ui'
 
@@ -35,6 +35,7 @@ export default function Explore({ profile, collabs, applications, unseen, onOpen
         <button className="accepted-banner" onClick={onShowAccepted}>
           <span className="eyebrow">{unseen.length === 1 ? "You're in" : `You're in · ${unseen.length} collabs`}</span>
           <span className="banner-title">{unseen.length === 1 ? `${unseen[0].collab!.brand} accepted you for ${unseen[0].collab!.title}` : 'Brands have accepted your applications'}</span>
+          {unseen.length === 1 && unseen[0].scheduled_start && <span className="small">{formatBooking(unseen[0].scheduled_start, unseen[0].scheduled_end)}</span>}
           <span className="banner-link">View details</span>
         </button>
       )}

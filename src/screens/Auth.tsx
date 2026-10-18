@@ -36,7 +36,7 @@ export default function Auth() {
             Try as an influencer
           </button>
           <button className="secondary" disabled={busy} onClick={() => run(() => api.demoSignIn!('admin'))}>
-            Try as Social Atelier (admin)
+            Try as The Social Atelier (admin)
           </button>
         </div>
       ) : (

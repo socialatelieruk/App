@@ -1,4 +1,4 @@
-import type { Application, ApplicationStatus, Collab, CollabInput, Profile, ProfileInput, ProfileStatus, Role } from '../types'
+import type { Application, ApplicationStatus, Collab, CollabInput, Profile, ProfileInput, ProfileStatus, Role, Schedule } from '../types'
 
 export interface Api {
   mode: 'demo' | 'live'
@@ -32,9 +32,15 @@ export interface Api {
   registerDevice(token: string, platform: 'ios' | 'android'): Promise<void>
   unregisterDevice(token: string): Promise<void>
 
+  // Google Calendar: accepted bookings are added to the influencer's calendar
+  getCalendarEmail(): Promise<string | null> // the connected Google account, or null
+  connectCalendar(): Promise<string> // URL of Google's consent screen
+  disconnectCalendar(): Promise<void>
+
   // Admin
   listApplicants(collabId: string): Promise<Application[]>
-  setApplicationStatus(id: string, status: ApplicationStatus): Promise<void>
+  // schedule: the confirmed booking time; null clears it, undefined leaves it as is
+  setApplicationStatus(id: string, status: ApplicationStatus, schedule?: Schedule | null): Promise<void>
   listInfluencers(): Promise<Profile[]>
   setInfluencerStatus(id: string, status: ProfileStatus): Promise<void>
 }

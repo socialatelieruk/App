@@ -1,6 +1,9 @@
-// Sends a push notification to an influencer's phones when Social Atelier
-// accepts their application. Called by a Supabase database webhook on
-// UPDATE of public.applications (see README → Notifications).
+// Runs whenever an application changes (Supabase database webhook on UPDATE
+// and DELETE of public.applications; see README → Notifications):
+//   - pushes a "You're in" notification to the influencer's phones when
+//     they're accepted
+//   - keeps their Google Calendar in step with the booking time, if they
+//     connected it
 //
 // Secrets (Supabase → Edge Functions → Secrets):
 //   WEBHOOK_SECRET            shared secret the webhook sends in x-webhook-secret
@@ -8,43 +11,60 @@
 //   APNS_KEY_P8, APNS_KEY_ID, APPLE_TEAM_ID   Apple push key, for iPhone
 //   APNS_BUNDLE_ID            optional, defaults to uk.socialatelier.app
 //   APNS_SANDBOX              optional, "true" for builds run from Xcode
-import { createClient } from 'npm:@supabase/supabase-js@2.118.0'
+//   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET    for Google Calendar
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.118.0'
 import { importPKCS8, SignJWT } from 'npm:jose@5.9.6'
-
-interface Application {
-  id: string
-  collab_id: string
-  user_id: string
-  status: string
-}
+import { type ApplicationRow, env, syncApplication } from '../_shared/google-calendar.ts'
 
 interface Device {
   token: string
   platform: 'ios' | 'android'
 }
 
-const env = (name: string) => Deno.env.get(name) ?? ''
-
 Deno.serve(async (req) => {
   if (!env('WEBHOOK_SECRET') || req.headers.get('x-webhook-secret') !== env('WEBHOOK_SECRET')) {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  const { type, record, old_record } = (await req.json()) as { type: string; record: Application; old_record: Application | null }
-  if (type !== 'UPDATE' || record.status !== 'accepted' || old_record?.status === 'accepted') {
-    return Response.json({ skipped: true })
-  }
-
+  const { type, record, old_record } = (await req.json()) as { type: string; record: ApplicationRow | null; old_record: ApplicationRow | null }
   const db = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'))
-  const [{ data: collab }, { data: devices }] = await Promise.all([
-    db.from('collabs').select('title, brand').eq('id', record.collab_id).single(),
-    db.from('device_tokens').select('token, platform').eq('user_id', record.user_id),
-  ])
-  if (!collab || !devices?.length) return Response.json({ sent: 0 })
+  const result: Record<string, unknown> = {}
 
+  // A deleted application (or collab) takes its calendar event with it.
+  if (type === 'DELETE' && old_record) {
+    result.calendar = await syncApplication(db, { ...old_record, status: 'deleted' }).catch(fail('calendar'))
+    return Response.json(result)
+  }
+  if (type !== 'UPDATE' || !record || !old_record) return Response.json({ skipped: true })
+
+  const newlyAccepted = record.status === 'accepted' && old_record.status !== 'accepted'
+  const bookingChanged =
+    record.status !== old_record.status || record.scheduled_start !== old_record.scheduled_start || record.scheduled_end !== old_record.scheduled_end
+
+  if (newlyAccepted) result.push = await notify(db, record).catch(fail('push'))
+  // Skips updates that only record the calendar event id, which this function makes itself.
+  if (bookingChanged) result.calendar = await syncApplication(db, record).catch(fail('calendar'))
+  return Response.json(Object.keys(result).length ? result : { skipped: true })
+})
+
+const fail = (what: string) => (e: unknown) => {
+  console.error(`${what} failed`, e)
+  return 'error'
+}
+
+async function notify(db: SupabaseClient, app: ApplicationRow) {
+  const [{ data: collab }, { data: devices }] = await Promise.all([
+    db.from('collabs').select('title, brand').eq('id', app.collab_id).single(),
+    db.from('device_tokens').select('token, platform').eq('user_id', app.user_id),
+  ])
+  if (!collab || !devices?.length) return { sent: 0 }
+
+  const when = app.scheduled_start
+    ? ` on ${new Date(app.scheduled_start).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Europe/London' })}`
+    : ''
   const message = {
     title: "You're in",
-    body: `${collab.brand} accepted you for ${collab.title}. Open the app for the details.`,
+    body: `${collab.brand} accepted you for ${collab.title}${when}. Open the app for the details.`,
   }
 
   const results = await Promise.all(
@@ -59,8 +79,8 @@ Deno.serve(async (req) => {
       }
     }),
   )
-  return Response.json({ sent: results.filter((r) => r === 'sent').length, results })
-})
+  return { sent: results.filter((r) => r === 'sent').length, results }
+}
 
 type Outcome = 'sent' | 'invalid-token' | 'not-configured' | 'error'
 

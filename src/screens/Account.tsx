@@ -1,14 +1,35 @@
 import { useState } from 'react'
 import { api } from '../api'
+import { openExternal } from '../links'
 import { stopPush } from '../push'
 import { errorMessage, formatFollowers } from '../format'
 import type { Profile } from '../types'
 import { Badge, ErrorText } from '../ui'
 import ProfileForm from './ProfileForm'
 
-export default function Account({ profile, onProfile }: { profile: Profile; onProfile: (p: Profile) => void }) {
+interface Props {
+  profile: Profile
+  onProfile: (p: Profile) => void
+  calendarEmail?: string | null // influencers only
+  onCalendarChanged?: () => void
+}
+
+export default function Account({ profile, onProfile, calendarEmail, onCalendarChanged }: Props) {
   const [editing, setEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [calendarBusy, setCalendarBusy] = useState(false)
+
+  const calendarAction = async (fn: () => Promise<void>) => {
+    setCalendarBusy(true)
+    setError(null)
+    try {
+      await fn()
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setCalendarBusy(false)
+    }
+  }
 
   const deleteAccount = async () => {
     if (!confirm('Delete your account and all your applications? This cannot be undone.')) return
@@ -39,7 +60,7 @@ export default function Account({ profile, onProfile }: { profile: Profile; onPr
         <div className="card profile-card">
           <div className="avatar">{(profile.full_name || profile.email || '?').slice(0, 1).toUpperCase()}</div>
           <div className="stack tight">
-            <strong className="card-title">{profile.full_name || 'Social Atelier'}</strong>
+            <strong className="card-title">{profile.full_name || 'The Social Atelier'}</strong>
             <span className="muted small">{profile.email}</span>
             {profile.role === 'influencer' ? (
               <>
@@ -59,6 +80,38 @@ export default function Account({ profile, onProfile }: { profile: Profile; onPr
             )}
           </div>
         </div>
+      )}
+
+      {profile.role === 'influencer' && !editing && (
+        <section className="calendar-card card">
+          <span className="eyebrow">Google Calendar</span>
+          {calendarEmail ? (
+            <>
+              <p>
+                Connected to <strong>{calendarEmail}</strong>. Accepted collabs are added to your calendar automatically.
+              </p>
+              <button
+                className="link subtle"
+                disabled={calendarBusy}
+                onClick={() =>
+                  calendarAction(async () => {
+                    await api.disconnectCalendar()
+                    onCalendarChanged?.()
+                  })
+                }
+              >
+                Disconnect
+              </button>
+            </>
+          ) : (
+            <>
+              <p>Connect your Google Calendar and every collab you're accepted for appears there with its date and time.</p>
+              <button className="primary" disabled={calendarBusy} onClick={() => calendarAction(async () => openExternal(await api.connectCalendar()))}>
+                Connect Google Calendar
+              </button>
+            </>
+          )}
+        </section>
       )}
 
       <div className="stack">

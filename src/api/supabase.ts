@@ -18,6 +18,16 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     return res.data
   }
 
+  // Calls an edge function, surfacing its { error } message when it fails.
+  async function invoke(name: string, body: Record<string, unknown>) {
+    const { data, error } = await sb.functions.invoke(name, { body })
+    if (error) {
+      const detail = await error.context?.json?.().catch(() => null)
+      throw new Error(detail?.error ?? 'Something went wrong. Please try again.')
+    }
+    return data
+  }
+
   return {
     mode: 'live',
 
@@ -114,12 +124,26 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       check(await sb.rpc('unregister_device', { device_token: token }))
     },
 
+    async getCalendarEmail() {
+      const rows = check(await sb.rpc('my_calendar_link')) as { email: string }[] | null
+      return rows?.[0] ? rows[0].email || 'your Google account' : null
+    },
+
+    async connectCalendar() {
+      return ((await invoke('google-calendar', { action: 'start' })) as { url: string }).url
+    },
+
+    async disconnectCalendar() {
+      await invoke('google-calendar', { action: 'disconnect' })
+    },
+
     async listApplicants(collabId) {
       return check(await sb.from('applications').select('*, profile:profiles(*)').eq('collab_id', collabId).order('created_at')) as Application[]
     },
 
-    async setApplicationStatus(id, status) {
-      check(await sb.from('applications').update({ status }).eq('id', id))
+    async setApplicationStatus(id, status, schedule) {
+      const booking = schedule === undefined ? {} : { scheduled_start: schedule?.start ?? null, scheduled_end: schedule?.end ?? null }
+      check(await sb.from('applications').update({ status, ...booking }).eq('id', id))
     },
 
     async listInfluencers() {
