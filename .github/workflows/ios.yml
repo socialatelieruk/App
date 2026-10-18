@@ -28,6 +28,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          VITE_PUSH_ENABLED: ${{ secrets.APNS_KEY_ID != '' }}
       - run: npx cap sync ios
 
       - name: Build for simulator (checks the project compiles, no signing)

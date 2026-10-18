@@ -26,6 +26,11 @@ export interface Api {
   listMyApplications(): Promise<Application[]>
   apply(collabId: string, message: string, preferredDate: string | null): Promise<void>
   withdraw(applicationId: string): Promise<void>
+  markSeen(applicationIds: string[]): Promise<void>
+
+  // Push notifications: the phones to notify for the signed-in user
+  registerDevice(token: string, platform: 'ios' | 'android'): Promise<void>
+  unregisterDevice(token: string): Promise<void>
 
   // Admin
   listApplicants(collabId: string): Promise<Application[]>

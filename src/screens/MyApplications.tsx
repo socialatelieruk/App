@@ -2,7 +2,7 @@ import { formatDate } from '../format'
 import type { Application, Collab } from '../types'
 import { Badge, Empty } from '../ui'
 
-export default function MyApplications({ applications, onOpen }: { applications: Application[]; onOpen: (c: Collab) => void }) {
+export default function MyApplications({ applications, newIds, onOpen }: { applications: Application[]; newIds: Set<string>; onOpen: (c: Collab) => void }) {
   const visible = applications.filter((a) => a.status !== 'withdrawn' && a.collab)
   const groups: { title: string; items: Application[] }[] = [
     { title: 'Accepted', items: visible.filter((a) => a.status === 'accepted') },
@@ -24,9 +24,12 @@ export default function MyApplications({ applications, onOpen }: { applications:
             <ul className="list">
               {g.items.map((a) => (
                 <li key={a.id}>
-                  <button className="card row-card" onClick={() => onOpen(a.collab!)}>
+                  <button className={`card row-card ${newIds.has(a.id) ? 'is-new' : ''}`} onClick={() => onOpen(a.collab!)}>
                     <div>
-                      <span className="eyebrow">{a.collab!.brand}</span>
+                      <span className="eyebrow">
+                        {a.collab!.brand}
+                        {newIds.has(a.id) && <span className="new-tag">New</span>}
+                      </span>
                       <strong>{a.collab!.title}</strong>
                       <span className="muted small">
                         Applied {formatDate(a.created_at)}

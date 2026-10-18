@@ -101,6 +101,19 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       check(await sb.from('applications').update({ status: 'withdrawn' }).eq('id', applicationId))
     },
 
+    async markSeen(applicationIds) {
+      if (applicationIds.length === 0) return
+      check(await sb.from('applications').update({ seen: true }).in('id', applicationIds))
+    },
+
+    async registerDevice(token, platform) {
+      check(await sb.rpc('register_device', { device_token: token, device_platform: platform }))
+    },
+
+    async unregisterDevice(token) {
+      check(await sb.rpc('unregister_device', { device_token: token }))
+    },
+
     async listApplicants(collabId) {
       return check(await sb.from('applications').select('*, profile:profiles(*)').eq('collab_id', collabId).order('created_at')) as Application[]
     },

@@ -63,6 +63,7 @@ export interface Application {
   message: string
   preferred_date: string | null
   status: ApplicationStatus
+  seen: boolean // false until the influencer has seen an acceptance
   created_at: string
   collab?: Collab
   profile?: Profile

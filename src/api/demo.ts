@@ -3,7 +3,7 @@ import type { Api } from './types'
 
 // Demo mode keeps everything in this browser/device so the app can be tried
 // before a Supabase project is connected.
-const KEY = 'demo.v1'
+const KEY = 'demo.v2'
 
 interface DemoState {
   userId: string | null
@@ -126,8 +126,8 @@ function seed(): DemoState {
       }),
     ],
     applications: [
-      { id: 'a1', collab_id: 'c3', user_id: 'demo-influencer', message: 'Would love to cover the launch!', preferred_date: null, status: 'accepted', created_at: now() },
-      { id: 'a2', collab_id: 'c1', user_id: 'demo-2', message: 'Brunch fan here, happy to do a Reel.', preferred_date: inDays(5), status: 'pending', created_at: now() },
+      { id: 'a1', collab_id: 'c3', user_id: 'demo-influencer', message: 'Would love to cover the launch!', preferred_date: null, status: 'accepted', seen: false, created_at: now() },
+      { id: 'a2', collab_id: 'c1', user_id: 'demo-2', message: 'Brunch fan here, happy to do a Reel.', preferred_date: inDays(5), status: 'pending', seen: true, created_at: now() },
     ],
   }
 }
@@ -227,9 +227,9 @@ export function createDemoApi(): Api {
       if (profile.status !== 'approved') throw new Error('You can apply once your profile is approved.')
       const existing = state.applications.find((a) => a.collab_id === collabId && a.user_id === profile.id)
       if (existing) {
-        Object.assign(existing, { message, preferred_date: preferredDate, status: 'pending' })
+        Object.assign(existing, { message, preferred_date: preferredDate, status: 'pending', seen: true })
       } else {
-        state.applications.push({ id: crypto.randomUUID(), collab_id: collabId, user_id: profile.id, message, preferred_date: preferredDate, status: 'pending', created_at: now() })
+        state.applications.push({ id: crypto.randomUUID(), collab_id: collabId, user_id: profile.id, message, preferred_date: preferredDate, status: 'pending', seen: true, created_at: now() })
       }
       persist()
     },
@@ -238,12 +238,21 @@ export function createDemoApi(): Api {
       persist()
     },
 
+    async markSeen(applicationIds) {
+      state.applications = state.applications.map((a) => (applicationIds.includes(a.id) ? { ...a, seen: true } : a))
+      persist()
+    },
+    // Demo mode has no server to send push notifications from.
+    async registerDevice() {},
+    async unregisterDevice() {},
+
     async listApplicants(collabId) {
       await tick()
       return state.applications.filter((a) => a.collab_id === collabId).map((a) => ({ ...a, profile: state.profiles.find((p) => p.id === a.user_id) }))
     },
     async setApplicationStatus(id, status) {
-      state.applications = state.applications.map((a) => (a.id === id ? { ...a, status } : a))
+      // Mirrors the database: a new acceptance is unseen until the influencer opens it.
+      state.applications = state.applications.map((a) => (a.id === id ? { ...a, status, seen: status === 'accepted' && a.status !== 'accepted' ? false : a.seen } : a))
       persist()
     },
     async listInfluencers() {

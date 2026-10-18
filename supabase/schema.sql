@@ -43,11 +43,22 @@ create table public.applications (
   message text not null default '',
   preferred_date date,
   status text not null default 'pending' check (status in ('pending', 'accepted', 'declined', 'withdrawn')),
+  seen boolean not null default true, -- false until the influencer has seen their acceptance
   created_at timestamptz not null default now(),
   unique (collab_id, user_id)
 );
 
 create index on public.applications (user_id);
+
+-- Phones to send push notifications to, one row per app install.
+create table public.device_tokens (
+  token text primary key,
+  user_id uuid not null references public.profiles on delete cascade,
+  platform text not null check (platform in ('ios', 'android')),
+  updated_at timestamptz not null default now()
+);
+
+create index on public.device_tokens (user_id);
 
 -- Helpers ------------------------------------------------------------------
 
@@ -90,7 +101,8 @@ $$;
 create trigger protect_profile_fields before update on public.profiles
   for each row execute function public.protect_profile_fields();
 
--- Influencers can only withdraw their own applications; admins set the outcome.
+-- Influencers can only withdraw their own applications (or mark them seen);
+-- admins set the outcome. A new acceptance starts unseen.
 create function public.protect_application_fields() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
@@ -99,9 +111,13 @@ begin
       raise exception 'Not allowed';
     end if;
     -- Re-applying after withdrawing resets to pending; otherwise only withdraw is allowed.
-    if not (new.status = 'withdrawn' or (old.status = 'withdrawn' and new.status = 'pending')) then
+    if new.status <> old.status
+      and not (new.status = 'withdrawn' or (old.status = 'withdrawn' and new.status = 'pending')) then
       raise exception 'Not allowed';
     end if;
+  end if;
+  if new.status = 'accepted' and old.status <> 'accepted' then
+    new.seen := false;
   end if;
   return new;
 end;
@@ -119,11 +135,30 @@ $$;
 revoke execute on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
 
+-- Saves this phone's push token for the signed-in user. A token moves to
+-- whoever signed in on that phone most recently.
+create function public.register_device(device_token text, device_platform text) returns void
+language sql security definer set search_path = public as $$
+  insert into device_tokens (token, user_id, platform) values (device_token, auth.uid(), device_platform)
+  on conflict (token) do update set user_id = excluded.user_id, platform = excluded.platform, updated_at = now();
+$$;
+
+create function public.unregister_device(device_token text) returns void
+language sql security definer set search_path = public as $$
+  delete from device_tokens where token = device_token and user_id = auth.uid();
+$$;
+
+revoke execute on function public.register_device(text, text) from public, anon;
+revoke execute on function public.unregister_device(text) from public, anon;
+grant execute on function public.register_device(text, text) to authenticated;
+grant execute on function public.unregister_device(text) to authenticated;
+
 -- Row level security -------------------------------------------------------
 
 alter table public.profiles enable row level security;
 alter table public.collabs enable row level security;
 alter table public.applications enable row level security;
+alter table public.device_tokens enable row level security; -- no policies: only the functions above and the server touch it
 
 create policy "Read own profile or admin reads all" on public.profiles
   for select to authenticated using (id = auth.uid() or is_admin());

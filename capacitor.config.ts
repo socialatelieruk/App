@@ -5,6 +5,10 @@ const config: CapacitorConfig = {
   appName: 'Social Atelier',
   webDir: 'dist',
   plugins: {
+    PushNotifications: {
+      // Show notifications even while the app is open.
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
     SplashScreen: {
       launchShowDuration: 800,
       backgroundColor: '#faf5ef',

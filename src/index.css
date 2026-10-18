@@ -760,3 +760,58 @@ label.toggle input {
   flex-direction: column;
   gap: 20px;
 }
+
+/* Notifications */
+.tab-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.dot {
+  position: absolute;
+  top: -1px;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+.accepted-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  width: 100%;
+  padding: 18px 20px;
+  background: var(--ink);
+  color: var(--ink-text);
+}
+
+.accepted-banner .eyebrow {
+  color: var(--gold);
+}
+
+.banner-title {
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.banner-link {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  margin-top: 2px;
+}
+
+.row-card.is-new {
+  border-color: var(--gold);
+}
+
+.new-tag {
+  color: var(--gold);
+  margin-left: 10px;
+}

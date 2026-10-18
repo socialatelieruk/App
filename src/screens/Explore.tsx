@@ -7,10 +7,12 @@ interface Props {
   profile: Profile
   collabs: Collab[]
   applications: Application[]
+  unseen: Application[] // acceptances the influencer hasn't seen yet
   onOpen: (c: Collab) => void
+  onShowAccepted: () => void
 }
 
-export default function Explore({ profile, collabs, applications, onOpen }: Props) {
+export default function Explore({ profile, collabs, applications, unseen, onOpen, onShowAccepted }: Props) {
   const [type, setType] = useState<CollabType | 'All'>('All')
   const [category, setCategory] = useState<Category | 'All'>('All')
   const [city, setCity] = useState<string>('All')
@@ -28,6 +30,14 @@ export default function Explore({ profile, collabs, applications, onOpen }: Prop
         <span className="eyebrow">Welcome, {profile.full_name.split(' ')[0] || 'there'}</span>
         <h1>Explore</h1>
       </header>
+
+      {unseen.length > 0 && (
+        <button className="accepted-banner" onClick={onShowAccepted}>
+          <span className="eyebrow">{unseen.length === 1 ? "You're in" : `You're in · ${unseen.length} collabs`}</span>
+          <span className="banner-title">{unseen.length === 1 ? `${unseen[0].collab!.brand} accepted you for ${unseen[0].collab!.title}` : 'Brands have accepted your applications'}</span>
+          <span className="banner-link">View details</span>
+        </button>
+      )}
 
       {profile.status === 'pending' && <p className="notice">Thanks for joining! Your profile is being reviewed. You can browse now and apply once you're approved.</p>}
 

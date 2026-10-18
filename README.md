@@ -42,6 +42,37 @@ Until Supabase is connected, the app runs in **demo mode** with sample collabs a
    ```
    Sign out and back in, and you'll see the admin tabs. Repeat for any team member.
 
+## Notifications
+
+When you accept an influencer, they're told in two ways:
+
+- **In the app** (works as soon as Supabase is connected): a gold dot on **My collabs**, a "You're in" banner on Explore, and a **New** tag on the accepted collab.
+- **On their phone's lock screen** (push notification): "You're in. *Brand* accepted you for *Collab*." Tapping it opens My collabs. This needs the one-off setup below. Until then the app works normally without it.
+
+All the keys below go in GitHub under **Settings → Secrets and variables → Actions**.
+
+**1. Let GitHub deploy the notification sender to Supabase**
+- `SUPABASE_PROJECT_REF`: the ID in your Supabase project URL (`https://<this part>.supabase.co`)
+- `SUPABASE_ACCESS_TOKEN`: create one at supabase.com → Account → Access Tokens
+- `WEBHOOK_SECRET`: any long random password you make up (it stops anyone else triggering notifications)
+
+**2. Android (Firebase, free)**
+1. At [console.firebase.google.com](https://console.firebase.google.com), create a project, then add an **Android app** with package name `uk.socialatelier.app`.
+2. Download `google-services.json` and add its full contents as the secret `GOOGLE_SERVICES_JSON`.
+3. In Firebase, go to **Project settings → Service accounts → Generate new private key**. Add the downloaded file's full contents as the secret `FIREBASE_SERVICE_ACCOUNT`.
+
+**3. iPhone (Apple push key)**
+1. At [developer.apple.com](https://developer.apple.com/account/resources/authkeys/list), go to **Keys → +**, tick **Apple Push Notifications service (APNs)**, and download the `.p8` file. This is a different key from the App Store Connect one.
+2. Add the secrets `APNS_KEY_P8` (the full contents of the `.p8` file) and `APNS_KEY_ID` (the key's ID). `APPLE_TEAM_ID` is already set if you followed the App Store steps.
+
+**4. Deploy and connect**
+1. In GitHub, go to **Actions → Deploy Supabase function → Run workflow**.
+2. In Supabase, go to **Database → Webhooks → Create a new hook**:
+   - Table: `applications`. Events: **Update** only.
+   - Type: **Supabase Edge Functions**, function `notify-accepted`, method POST.
+   - Add an HTTP header `x-webhook-secret` with the same value as your `WEBHOOK_SECRET`.
+3. Re-run the **Android build** and **iOS build** workflows so the apps include push. The app asks influencers for permission to send notifications the first time they open it.
+
 ## Running it locally
 
 ```bash

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
+import { startPush } from './push'
 import { errorMessage } from './format'
 import Account from './screens/Account'
 import Auth from './screens/Auth'
@@ -88,15 +89,50 @@ function InfluencerApp({ profile, onProfile }: { profile: Profile; onProfile: (p
   const [applications, setApplications] = useState<Application[]>([])
   const [open, setOpen] = useState<Collab | null>(null)
 
-  const reloadApps = useCallback(() => {
-    api.listMyApplications().then(setApplications, () => {})
-  }, [])
-  useEffect(reloadApps, [reloadApps])
+  // Acceptances seen during this visit to My collabs, so they keep their "New" tag until the influencer leaves.
+  const [justSeen, setJustSeen] = useState<Set<string>>(new Set())
+  const tabRef = useRef(tab)
 
-  // Refresh the profile so an approval shows up without signing out.
+  // Marks new acceptances as seen; called whenever My collabs is on screen.
+  const seeAccepted = useCallback((apps: Application[]) => {
+    const ids = apps.filter((a) => a.status === 'accepted' && a.seen === false).map((a) => a.id)
+    if (ids.length === 0) return apps
+    setJustSeen((s) => new Set([...s, ...ids]))
+    api.markSeen(ids).catch(() => {})
+    return apps.map((a) => (ids.includes(a.id) ? { ...a, seen: true } : a))
+  }, [])
+
+  const reloadApps = useCallback(() => {
+    api.listMyApplications().then((apps) => setApplications(tabRef.current === 'mine' ? seeAccepted(apps) : apps), () => {})
+  }, [seeAccepted])
+
+  // Refresh on every tab change so approvals and acceptances show up without signing out.
   useEffect(() => {
+    reloadApps()
     api.getMyProfile().then((p) => p && onProfile(p), () => {})
-  }, [tab, onProfile])
+  }, [tab, onProfile, reloadApps])
+
+  const changeTab = (t: InfluencerTab) => {
+    if (t !== 'mine') setJustSeen(new Set())
+    else setApplications(seeAccepted(applications))
+    tabRef.current = t
+    setTab(t)
+  }
+
+  useEffect(
+    () =>
+      startPush({
+        onReceived: reloadApps,
+        onOpened: () => {
+          setOpen(null)
+          tabRef.current = 'mine'
+          setTab('mine')
+        },
+      }),
+    [reloadApps],
+  )
+
+  const unseen = applications.filter((a) => a.status === 'accepted' && a.seen === false && a.collab)
 
   return (
     <div className="app">
@@ -105,9 +141,9 @@ function InfluencerApp({ profile, onProfile }: { profile: Profile; onProfile: (p
         {loading ? (
           <Spinner />
         ) : tab === 'explore' ? (
-          <Explore profile={profile} collabs={collabs} applications={applications} onOpen={setOpen} />
+          <Explore profile={profile} collabs={collabs} applications={applications} unseen={unseen} onOpen={setOpen} onShowAccepted={() => changeTab('mine')} />
         ) : tab === 'mine' ? (
-          <MyApplications applications={applications} onOpen={setOpen} />
+          <MyApplications applications={applications} newIds={justSeen} onOpen={setOpen} />
         ) : (
           <Account profile={profile} onProfile={onProfile} />
         )}
@@ -116,11 +152,11 @@ function InfluencerApp({ profile, onProfile }: { profile: Profile; onProfile: (p
       <TabBar
         tabs={[
           ['explore', 'explore', 'Explore'],
-          ['mine', 'list', 'My collabs'],
+          ['mine', 'list', 'My collabs', unseen.length > 0],
           ['profile', 'person', 'Profile'],
         ]}
         active={tab}
-        onChange={(t) => setTab(t as InfluencerTab)}
+        onChange={(t) => changeTab(t as InfluencerTab)}
       />
 
       {open && (
@@ -196,12 +232,15 @@ function AdminApp({ profile, onProfile }: { profile: Profile; onProfile: (p: Pro
   )
 }
 
-function TabBar({ tabs, active, onChange }: { tabs: [string, IconName, string][]; active: string; onChange: (t: string) => void }) {
+function TabBar({ tabs, active, onChange }: { tabs: [string, IconName, string, boolean?][]; active: string; onChange: (t: string) => void }) {
   return (
     <nav className="tabbar">
-      {tabs.map(([id, icon, label]) => (
-        <button key={id} className={active === id ? 'on' : ''} onClick={() => onChange(id)}>
-          <Icon name={icon} />
+      {tabs.map(([id, icon, label, dot]) => (
+        <button key={id} className={active === id ? 'on' : ''} onClick={() => onChange(id)} aria-label={dot ? `${label}, new` : undefined}>
+          <span className="tab-icon">
+            <Icon name={icon} />
+            {dot && <span className="dot" />}
+          </span>
           {label}
         </button>
       ))}

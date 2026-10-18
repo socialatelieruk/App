@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api } from '../api'
+import { stopPush } from '../push'
 import { errorMessage, formatFollowers } from '../format'
 import type { Profile } from '../types'
 import { Badge, ErrorText } from '../ui'
@@ -12,6 +13,7 @@ export default function Account({ profile, onProfile }: { profile: Profile; onPr
   const deleteAccount = async () => {
     if (!confirm('Delete your account and all your applications? This cannot be undone.')) return
     try {
+      await stopPush()
       await api.deleteMyAccount()
     } catch (e) {
       setError(errorMessage(e))
@@ -70,7 +72,7 @@ export default function Account({ profile, onProfile }: { profile: Profile; onPr
             Cancel
           </button>
         )}
-        <button className="secondary" onClick={() => api.signOut()}>
+        <button className="secondary" onClick={() => stopPush().then(() => api.signOut())}>
           Sign out
         </button>
         <button className="danger" onClick={deleteAccount}>
