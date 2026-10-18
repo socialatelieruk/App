@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'uk.socialatelier.planner',
-  appName: 'Content Planner',
+  appId: 'uk.socialatelier.app',
+  appName: 'Social Atelier',
   webDir: 'dist',
   plugins: {
     SplashScreen: {

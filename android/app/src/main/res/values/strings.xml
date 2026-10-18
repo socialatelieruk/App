@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Content Planner</string>
-    <string name="title_activity_main">Content Planner</string>
-    <string name="package_name">uk.socialatelier.planner</string>
-    <string name="custom_url_scheme">uk.socialatelier.planner</string>
+    <string name="app_name">Social Atelier</string>
+    <string name="title_activity_main">Social Atelier</string>
+    <string name="package_name">uk.socialatelier.app</string>
+    <string name="custom_url_scheme">uk.socialatelier.app</string>
 </resources>

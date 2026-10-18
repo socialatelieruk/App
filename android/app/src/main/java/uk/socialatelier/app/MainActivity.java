@@ -1,4 +1,4 @@
-package uk.socialatelier.planner;
+package uk.socialatelier.app;
 
 import com.getcapacitor.BridgeActivity;
 

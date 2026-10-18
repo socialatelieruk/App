@@ -1,247 +1,210 @@
-import { useEffect, useMemo, useState } from 'react'
-import PostEditor from './PostEditor'
-import { WEEKDAYS, formatLongDate, formatMonth, monthGrid, toISODate, today } from './dates'
-import { loadPosts, savePosts } from './storage'
-import { PLATFORMS, PLATFORM_COLORS, STATUSES, type Platform, type Post, type Status } from './types'
+import { useCallback, useEffect, useState } from 'react'
+import { api } from './api'
+import { errorMessage } from './format'
+import Account from './screens/Account'
+import Auth from './screens/Auth'
+import CollabDetail from './screens/CollabDetail'
+import Explore from './screens/Explore'
+import MyApplications from './screens/MyApplications'
+import ProfileForm from './screens/ProfileForm'
+import AdminCollabs from './screens/admin/AdminCollabs'
+import Applicants from './screens/admin/Applicants'
+import CollabForm from './screens/admin/CollabForm'
+import Influencers from './screens/admin/Influencers'
+import type { Application, Collab, Profile } from './types'
+import { ErrorText, Spinner } from './ui'
 
-type View = 'calendar' | 'list'
-
-function newPost(date: string): Post {
-  const now = Date.now()
-  return {
-    id: crypto.randomUUID(),
-    title: '',
-    caption: '',
-    hashtags: '',
-    date,
-    time: '',
-    platforms: [],
-    status: 'Idea',
-    notes: '',
-    createdAt: now,
-    updatedAt: now,
-  }
-}
-
-const byDateTime = (a: Post, b: Post) => (a.date + a.time).localeCompare(b.date + b.time)
+type InfluencerTab = 'explore' | 'mine' | 'profile'
+type AdminTab = 'collabs' | 'influencers' | 'profile'
 
 export default function App() {
-  const [posts, setPosts] = useState<Post[]>([])
-  const [loaded, setLoaded] = useState(false)
-  const [view, setView] = useState<View>('calendar')
-  const [cursor, setCursor] = useState(() => {
-    const d = new Date()
-    return { year: d.getFullYear(), month: d.getMonth() }
-  })
-  const [selectedDate, setSelectedDate] = useState(today())
-  const [editing, setEditing] = useState<{ post: Post; isNew: boolean } | null>(null)
-  const [platformFilter, setPlatformFilter] = useState<Platform | 'All'>('All')
-  const [statusFilter, setStatusFilter] = useState<Status | 'All'>('All')
+  const [userId, setUserId] = useState<string | null | undefined>(undefined)
 
   useEffect(() => {
-    loadPosts().then((p) => {
-      setPosts(p)
-      setLoaded(true)
-    })
+    api.getUserId().then(setUserId)
+    return api.onAuthChange(setUserId)
   }, [])
 
+  if (userId === undefined) return <Spinner />
+  if (!userId) return <Auth />
+  // Keyed so a different user starts with fresh state.
+  return <SignedIn key={userId} />
+}
+
+function SignedIn() {
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
   useEffect(() => {
-    if (loaded) savePosts(posts)
-  }, [posts, loaded])
+    api.getMyProfile().then(setProfile, (e) => setError(errorMessage(e)))
+  }, [])
 
-  const visible = useMemo(
-    () =>
-      posts
-        .filter((p) => platformFilter === 'All' || p.platforms.includes(platformFilter))
-        .filter((p) => statusFilter === 'All' || p.status === statusFilter)
-        .sort(byDateTime),
-    [posts, platformFilter, statusFilter],
-  )
+  if (error)
+    return (
+      <div className="auth">
+        <ErrorText error={error} />
+        <button className="secondary" onClick={() => api.signOut()}>
+          Sign out
+        </button>
+      </div>
+    )
+  if (!profile) return <Spinner />
 
-  const postsByDate = useMemo(() => {
-    const map = new Map<string, Post[]>()
-    for (const p of visible) {
-      const list = map.get(p.date) ?? []
-      list.push(p)
-      map.set(p.date, list)
-    }
-    return map
-  }, [visible])
-
-  const savePost = (post: Post) => {
-    const updated = { ...post, updatedAt: Date.now() }
-    setPosts((ps) => (ps.some((p) => p.id === post.id) ? ps.map((p) => (p.id === post.id ? updated : p)) : [...ps, updated]))
-    setSelectedDate(post.date)
-    setEditing(null)
+  if (profile.role === 'influencer' && !profile.full_name) {
+    return (
+      <div className="app">
+        <header className="page-header">
+          <h1>Tell us about you</h1>
+          <p className="muted">Social Atelier reviews every profile so brands get the right creators. This takes 30 seconds.</p>
+        </header>
+        <ProfileForm profile={profile} onSaved={setProfile} submitLabel="Submit for review" />
+      </div>
+    )
   }
 
-  const deletePost = (id: string) => {
-    setPosts((ps) => ps.filter((p) => p.id !== id))
-    setEditing(null)
-  }
+  return profile.role === 'admin' ? <AdminApp profile={profile} onProfile={setProfile} /> : <InfluencerApp profile={profile} onProfile={setProfile} />
+}
 
-  const duplicatePost = (post: Post) => {
-    const now = Date.now()
-    setEditing({ post: { ...post, id: crypto.randomUUID(), title: `${post.title} (copy)`, status: 'Draft', createdAt: now, updatedAt: now }, isNew: true })
-  }
+function useCollabs() {
+  const [collabs, setCollabs] = useState<Collab[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const reload = useCallback(() => {
+    api.listCollabs().then(
+      (c) => {
+        setCollabs(c)
+        setLoading(false)
+      },
+      (e) => setError(errorMessage(e)),
+    )
+  }, [])
+  useEffect(reload, [reload])
+  return { collabs, loading, error, reload }
+}
 
-  const shiftMonth = (delta: number) =>
-    setCursor(({ year, month }) => {
-      const d = new Date(year, month + delta, 1)
-      return { year: d.getFullYear(), month: d.getMonth() }
-    })
+function InfluencerApp({ profile, onProfile }: { profile: Profile; onProfile: (p: Profile) => void }) {
+  const [tab, setTab] = useState<InfluencerTab>('explore')
+  const { collabs, loading, error, reload } = useCollabs()
+  const [applications, setApplications] = useState<Application[]>([])
+  const [open, setOpen] = useState<Collab | null>(null)
 
-  const goToday = () => {
-    const d = new Date()
-    setCursor({ year: d.getFullYear(), month: d.getMonth() })
-    setSelectedDate(today())
-  }
+  const reloadApps = useCallback(() => {
+    api.listMyApplications().then(setApplications, () => {})
+  }, [])
+  useEffect(reloadApps, [reloadApps])
 
-  const counts = useMemo(() => {
-    const c: Record<Status, number> = { Idea: 0, Draft: 0, Scheduled: 0, Posted: 0 }
-    for (const p of posts) c[p.status]++
-    return c
-  }, [posts])
-
-  const todayStr = today()
-  const upcoming = visible.filter((p) => p.date >= todayStr)
-  const past = visible.filter((p) => p.date < todayStr).reverse()
-  const dayPosts = postsByDate.get(selectedDate) ?? []
+  // Refresh the profile so an approval shows up without signing out.
+  useEffect(() => {
+    api.getMyProfile().then((p) => p && onProfile(p), () => {})
+  }, [tab, onProfile])
 
   return (
     <div className="app">
-      <header className="topbar">
-        <h1>Content Planner</h1>
-        <div className="segmented small">
-          <button className={view === 'calendar' ? 'on' : ''} onClick={() => setView('calendar')}>
-            Calendar
-          </button>
-          <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>
-            List
-          </button>
-        </div>
-      </header>
-
-      <section className="stats">
-        {STATUSES.map((s) => (
-          <button key={s} className={`stat ${statusFilter === s ? 'on' : ''}`} data-status={s} onClick={() => setStatusFilter(statusFilter === s ? 'All' : s)}>
-            <strong>{counts[s]}</strong>
-            <span>{s}</span>
-          </button>
-        ))}
-      </section>
-
-      <div className="filters">
-        <select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value as Platform | 'All')} aria-label="Filter by platform">
-          <option value="All">All platforms</option>
-          {PLATFORMS.map((p) => (
-            <option key={p}>{p}</option>
-          ))}
-        </select>
-        {(platformFilter !== 'All' || statusFilter !== 'All') && (
-          <button
-            className="link"
-            onClick={() => {
-              setPlatformFilter('All')
-              setStatusFilter('All')
-            }}
-          >
-            Clear filters
-          </button>
-        )}
-      </div>
-
       <main>
-        {view === 'calendar' ? (
-          <>
-            <div className="month-nav">
-              <button className="icon" onClick={() => shiftMonth(-1)} aria-label="Previous month">
-                ‹
-              </button>
-              <h2>{formatMonth(cursor.year, cursor.month)}</h2>
-              <button className="icon" onClick={() => shiftMonth(1)} aria-label="Next month">
-                ›
-              </button>
-              <button className="link" onClick={goToday}>
-                Today
-              </button>
-            </div>
-
-            <div className="grid">
-              {WEEKDAYS.map((w) => (
-                <div key={w} className="weekday">
-                  {w}
-                </div>
-              ))}
-              {monthGrid(cursor.year, cursor.month).map((d) => {
-                const iso = toISODate(d)
-                const items = postsByDate.get(iso) ?? []
-                const classes = ['day', d.getMonth() !== cursor.month && 'outside', iso === todayStr && 'today', iso === selectedDate && 'selected'].filter(Boolean).join(' ')
-                return (
-                  <button key={iso} className={classes} onClick={() => setSelectedDate(iso)} onDoubleClick={() => setEditing({ post: newPost(iso), isNew: true })}>
-                    <span className="num">{d.getDate()}</span>
-                    <span className="dots">
-                      {items.slice(0, 4).map((p) => (
-                        <i key={p.id} style={{ background: p.platforms[0] ? PLATFORM_COLORS[p.platforms[0]] : 'var(--muted)' }} />
-                      ))}
-                      {items.length > 4 && <small>+{items.length - 4}</small>}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-
-            <h3 className="day-title">{formatLongDate(selectedDate)}</h3>
-            {dayPosts.length === 0 ? <p className="empty">Nothing planned. Tap + to add a post.</p> : <PostList posts={dayPosts} onOpen={(p) => setEditing({ post: p, isNew: false })} />}
-          </>
+        <ErrorText error={error} />
+        {loading ? (
+          <Spinner />
+        ) : tab === 'explore' ? (
+          <Explore profile={profile} collabs={collabs} applications={applications} onOpen={setOpen} />
+        ) : tab === 'mine' ? (
+          <MyApplications applications={applications} onOpen={setOpen} />
         ) : (
-          <>
-            <h3 className="day-title">Upcoming</h3>
-            {upcoming.length === 0 ? <p className="empty">No upcoming posts.</p> : <PostList posts={upcoming} showDate onOpen={(p) => setEditing({ post: p, isNew: false })} />}
-            {past.length > 0 && (
-              <>
-                <h3 className="day-title">Past</h3>
-                <PostList posts={past} showDate onOpen={(p) => setEditing({ post: p, isNew: false })} />
-              </>
-            )}
-          </>
+          <Account profile={profile} onProfile={onProfile} />
         )}
       </main>
 
-      <button className="fab" aria-label="Add post" onClick={() => setEditing({ post: newPost(view === 'calendar' ? selectedDate : todayStr), isNew: true })}>
-        +
-      </button>
+      <TabBar
+        tabs={[
+          ['explore', '✨', 'Explore'],
+          ['mine', '📋', 'My collabs'],
+          ['profile', '👤', 'Profile'],
+        ]}
+        active={tab}
+        onChange={(t) => setTab(t as InfluencerTab)}
+      />
 
-      {editing && <PostEditor key={editing.post.id} post={editing.post} isNew={editing.isNew} onSave={savePost} onDelete={deletePost} onDuplicate={duplicatePost} onClose={() => setEditing(null)} />}
+      {open && (
+        <CollabDetail
+          key={open.id}
+          collab={open}
+          profile={profile}
+          application={applications.find((a) => a.collab_id === open.id)}
+          onClose={() => setOpen(null)}
+          onChanged={() => {
+            reloadApps()
+            reload()
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function PostList({ posts, showDate, onOpen }: { posts: Post[]; showDate?: boolean; onOpen: (p: Post) => void }) {
+function AdminApp({ profile, onProfile }: { profile: Profile; onProfile: (p: Profile) => void }) {
+  const [tab, setTab] = useState<AdminTab>('collabs')
+  const { collabs, loading, error, reload } = useCollabs()
+  const [viewing, setViewing] = useState<Collab | null>(null)
+  const [editing, setEditing] = useState<Collab | 'new' | null>(null)
+
   return (
-    <ul className="posts">
-      {posts.map((p) => (
-        <li key={p.id}>
-          <button className="post" onClick={() => onOpen(p)}>
-            <div className="post-top">
-              <span className="post-title">{p.title}</span>
-              <span className="badge" data-status={p.status}>
-                {p.status}
-              </span>
-            </div>
-            <div className="post-meta">
-              {showDate && <span>{formatLongDate(p.date)}</span>}
-              {p.time && <span>{p.time}</span>}
-              {p.platforms.map((pl) => (
-                <span key={pl} className="tag" style={{ color: PLATFORM_COLORS[pl] }}>
-                  {pl}
-                </span>
-              ))}
-            </div>
-            {p.caption && <p className="post-caption">{p.caption}</p>}
-          </button>
-        </li>
+    <div className="app">
+      <main>
+        <ErrorText error={error} />
+        {tab === 'collabs' ? (
+          loading ? (
+            <Spinner />
+          ) : (
+            <AdminCollabs collabs={collabs} onOpen={setViewing} onNew={() => setEditing('new')} />
+          )
+        ) : tab === 'influencers' ? (
+          <Influencers />
+        ) : (
+          <Account profile={profile} onProfile={onProfile} />
+        )}
+      </main>
+
+      <TabBar
+        tabs={[
+          ['collabs', '🎁', 'Collabs'],
+          ['influencers', '⭐', 'Influencers'],
+          ['profile', '👤', 'Account'],
+        ]}
+        active={tab}
+        onChange={(t) => setTab(t as AdminTab)}
+      />
+
+      {viewing && !editing && (
+        <Applicants
+          collab={viewing}
+          onClose={() => setViewing(null)}
+          onEdit={() => setEditing(viewing)}
+          onChanged={reload}
+        />
+      )}
+      {editing && (
+        <CollabForm
+          collab={editing === 'new' ? undefined : editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null)
+            setViewing(null)
+            reload()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function TabBar({ tabs, active, onChange }: { tabs: [string, string, string][]; active: string; onChange: (t: string) => void }) {
+  return (
+    <nav className="tabbar">
+      {tabs.map(([id, icon, label]) => (
+        <button key={id} className={active === id ? 'on' : ''} onClick={() => onChange(id)}>
+          <span className="tab-icon">{icon}</span>
+          {label}
+        </button>
       ))}
-    </ul>
+    </nav>
   )
 }
