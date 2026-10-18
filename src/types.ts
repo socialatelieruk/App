@@ -34,7 +34,8 @@ export type CollabStatus = 'open' | 'closed'
 export interface Collab {
   id: string
   title: string
-  brand: string
+  brand: string // brand name, as creators see it
+  brand_id: string | null // the brand record (admins only see its details)
   description: string
   category: Category
   type: CollabType
@@ -122,4 +123,50 @@ export const CATEGORY_TONES: Record<Category, string> = {
   Travel: '#d6dde3',
   Experiences: '#e6d8c4',
   Lifestyle: '#e3ddd2',
+}
+
+// Admin-only records: creators never see these.
+export const DEAL_TYPES = ['gifted', 'paid', 'retainer'] as const
+export type DealType = (typeof DEAL_TYPES)[number]
+
+export interface Brand {
+  id: string
+  name: string
+  instagram: string
+  contact_name: string
+  email: string
+  phone: string
+  area: string
+  deal_type: DealType
+  monthly_fee: number | null // retainer brands
+  retainer_start: string | null // YYYY-MM-01
+  notes: string
+  created_at: string
+}
+
+export type BrandInput = Omit<Brand, 'id' | 'created_at'>
+
+export const PAYMENT_STATUSES = ['unpaid', 'invoiced', 'paid'] as const
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
+
+// Fee for one collab. No fee means the collab is gifted.
+export interface CollabFinance {
+  collab_id: string
+  fee: number | null
+  payment_status: PaymentStatus
+  invoiced_on: string | null
+  paid_on: string | null
+}
+
+export type FinanceInput = Pick<CollabFinance, 'fee' | 'payment_status' | 'invoiced_on' | 'paid_on'>
+
+// One retainer month that has been invoiced or paid; months with no row are unpaid.
+export interface RetainerPayment {
+  id: string
+  brand_id: string
+  month: string // YYYY-MM-01
+  amount: number
+  status: PaymentStatus
+  invoiced_on: string | null
+  paid_on: string | null
 }

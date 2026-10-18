@@ -1127,3 +1127,263 @@ label.toggle input {
   display: inline-block;
   text-decoration: none;
 }
+
+/* Admin: Today */
+.today-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.today-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  min-height: 104px;
+  justify-content: space-between;
+}
+
+.today-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.today-card strong {
+  font-family: var(--serif);
+  font-size: 2.6rem;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.today-card span {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+
+.today-card[data-empty] strong {
+  color: var(--muted);
+}
+
+.today-card[data-urgent] {
+  border-color: var(--danger);
+}
+
+.today-card[data-urgent] strong {
+  color: var(--danger);
+}
+
+.caught-up {
+  text-align: center;
+  padding: 36px 12px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.caught-up h2 {
+  font-size: 2rem;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.week {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.week-day {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.week-date {
+  font-family: var(--serif);
+  font-size: 1.2rem;
+}
+
+.booking-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+.booking-time {
+  font-variant-numeric: tabular-nums;
+  min-width: 3.2rem;
+  font-size: 0.95rem;
+}
+
+.booking-who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.booking-who strong {
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+/* Admin: money */
+.money-card {
+  width: 100%;
+  padding: 16px;
+}
+
+.money-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0;
+  gap: 8px;
+}
+
+.money-summary > div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 4px;
+}
+
+.money-summary dt {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.money-summary dd {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.55rem;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.money-summary .owed dd,
+.owed {
+  color: var(--danger);
+}
+
+.payment-tag {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.payment-tag[data-payment='paid'] {
+  color: var(--accepted);
+}
+
+.payment-tag[data-payment='unpaid'],
+.payment-tag[data-payment='invoiced'] {
+  color: var(--danger);
+}
+
+.payment-tag[data-payment='overdue'] {
+  color: var(--ink-text);
+  background: var(--danger);
+  padding: 3px 6px;
+}
+
+.money-fields {
+  border: 1px solid var(--border);
+  padding: 16px;
+  gap: 14px;
+}
+
+.money-fields legend {
+  padding: 0 6px;
+}
+
+/* Admin: brands */
+.brand-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+}
+
+.badge[data-deal='paid'] {
+  color: var(--text);
+}
+.badge[data-deal='retainer'] {
+  color: var(--gold);
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.facts .notes {
+  white-space: pre-line;
+}
+
+.brand-collab {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.brand-collab-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  width: 100%;
+}
+
+.brand-collab .card-title {
+  font-size: 1.3rem;
+}
+
+.retainer-months {
+  gap: 0;
+}
+
+.retainer-month {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.retainer-month > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.retainer-month select {
+  width: auto;
+  min-width: 8rem;
+  font-size: 0.9rem;
+}
+
+.retainer-month[data-payment='unpaid'] .muted,
+.retainer-month[data-payment='invoiced'] .muted,
+.retainer-month[data-payment='overdue'] .muted {
+  color: var(--danger);
+}
+
+.retainer-month[data-payment='overdue'] strong {
+  color: var(--danger);
+}
+
+.error.small {
+  font-size: 0.85rem;
+}

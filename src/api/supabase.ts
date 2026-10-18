@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Application, BrandReport, Collab, DeliveryStats, Profile } from '../types'
+import type { Application, Brand, BrandReport, Collab, CollabFinance, DeliveryStats, Profile, RetainerPayment } from '../types'
 import type { Api } from './types'
 
 export function createSupabaseApi(url: string, anonKey: string): Api {
@@ -165,6 +165,44 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const existing = check(await sb.from('report_links').select('token').eq('collab_id', collabId).maybeSingle()) as { token: string } | null
       if (existing) return existing.token
       return (check(await sb.from('report_links').insert({ collab_id: collabId }).select('token').single()) as { token: string }).token
+    },
+
+    async listAllApplications() {
+      return check(await sb.from('applications').select('*, collab:collabs(*), profile:profiles(*)').order('created_at', { ascending: false })) as Application[]
+    },
+
+    async listBrands() {
+      const rows = check(await sb.from('brands').select('*').order('name')) as Brand[]
+      return rows.map((b) => ({ ...b, monthly_fee: b.monthly_fee === null ? null : Number(b.monthly_fee) }))
+    },
+
+    async saveBrand(input, id) {
+      const query = id ? sb.from('brands').update(input).eq('id', id) : sb.from('brands').insert(input)
+      const { data, error } = await query.select().single()
+      if (error) throw new Error(error.code === '23505' ? 'A brand with that name already exists.' : error.message)
+      return data as Brand
+    },
+
+    async listFinances() {
+      const rows = check(await sb.from('collab_finances').select('*')) as CollabFinance[]
+      return Object.fromEntries(rows.map((f) => [f.collab_id, { ...f, fee: f.fee === null ? null : Number(f.fee) }]))
+    },
+
+    async saveFinance(collabId, input) {
+      check(await sb.from('collab_finances').upsert({ collab_id: collabId, ...input, updated_at: new Date().toISOString() }))
+    },
+
+    async listRetainerPayments() {
+      const rows = check(await sb.from('retainer_payments').select('*')) as RetainerPayment[]
+      return rows.map((p) => ({ ...p, amount: Number(p.amount) }))
+    },
+
+    async saveRetainerPayment(brandId, month, amount, status, invoicedOn) {
+      check(
+        await sb
+          .from('retainer_payments')
+          .upsert({ brand_id: brandId, month, amount, status, invoiced_on: invoicedOn, paid_on: null }, { onConflict: 'brand_id,month' }),
+      )
     },
 
     async getReport(token) {

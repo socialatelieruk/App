@@ -5,9 +5,9 @@ import { errorMessage, formatDate, formatFollowers } from '../../format'
 import type { DeliveryStats, Profile, ProfileStatus } from '../../types'
 import { Badge, Empty, ErrorText, Spinner } from '../../ui'
 
-export default function Influencers() {
+export default function Influencers({ initialTab = 'pending', onChanged }: { initialTab?: ProfileStatus; onChanged?: () => void }) {
   const [people, setPeople] = useState<Profile[] | null>(null)
-  const [tab, setTab] = useState<ProfileStatus>('pending')
+  const [tab, setTab] = useState<ProfileStatus>(initialTab)
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState<Record<string, DeliveryStats>>({})
 
@@ -21,6 +21,7 @@ export default function Influencers() {
     try {
       await api.setInfluencerStatus(id, status)
       load()
+      onChanged?.()
     } catch (e) {
       setError(errorMessage(e))
     }
@@ -35,7 +36,7 @@ export default function Influencers() {
   return (
     <>
       <header className="page-header">
-        <h1>Influencers</h1>
+        <h1>Creators</h1>
       </header>
       <div className="segmented">
         {(['pending', 'approved', 'rejected'] as const).map((s) => (

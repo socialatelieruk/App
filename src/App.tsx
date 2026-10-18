@@ -12,12 +12,18 @@ import ProfileForm from './screens/ProfileForm'
 import AdminCollabs from './screens/admin/AdminCollabs'
 import Applicants from './screens/admin/Applicants'
 import CollabForm from './screens/admin/CollabForm'
+import BrandForm from './screens/admin/BrandForm'
+import BrandPage from './screens/admin/BrandPage'
+import Brands from './screens/admin/Brands'
+import { type QueueKind, useAdminData } from './screens/admin/data'
 import Influencers from './screens/admin/Influencers'
-import type { Application, Collab, Profile } from './types'
+import Queue from './screens/admin/Queue'
+import Today from './screens/admin/Today'
+import type { Application, Brand, Collab, Profile, ProfileStatus } from './types'
 import { ErrorText, Icon, Spinner, type IconName } from './ui'
 
 type InfluencerTab = 'explore' | 'mine' | 'profile'
-type AdminTab = 'collabs' | 'influencers' | 'profile'
+type AdminTab = 'today' | 'collabs' | 'brands' | 'influencers' | 'profile'
 
 export default function App() {
   const [userId, setUserId] = useState<string | null | undefined>(undefined)
@@ -187,23 +193,48 @@ function InfluencerApp({ profile, onProfile }: { profile: Profile; onProfile: (p
 }
 
 function AdminApp({ profile, onProfile }: { profile: Profile; onProfile: (p: Profile) => void }) {
-  const [tab, setTab] = useState<AdminTab>('collabs')
-  const { collabs, loading, error, reload } = useCollabs()
+  const [tab, setTab] = useState<AdminTab>('today')
+  const { data, error, reload } = useAdminData()
+  const [influencerTab, setInfluencerTab] = useState<ProfileStatus>('pending')
+  const [queueKind, setQueueKind] = useState<QueueKind | null>(null)
   const [viewing, setViewing] = useState<Collab | null>(null)
   const [editing, setEditing] = useState<Collab | 'new' | null>(null)
+  const [newCollabBrand, setNewCollabBrand] = useState<string | undefined>(undefined)
+  const [brandId, setBrandId] = useState<string | null>(null)
+  const [editingBrand, setEditingBrand] = useState<Brand | 'new' | null>(null)
+
+  // Fresh numbers whenever the admin switches tab.
+  const changeTab = (t: AdminTab) => {
+    setTab(t)
+    reload()
+  }
+  // Collab objects are re-read from the latest data so sheets show current values.
+  const current = (c: Collab | null) => (c && data?.collabs.find((x) => x.id === c.id)) || c
+  const brand = data?.brands.find((b) => b.id === brandId) ?? null
 
   return (
     <div className="app">
       <main>
         <ErrorText error={error} />
-        {tab === 'collabs' ? (
-          loading ? (
-            <Spinner />
-          ) : (
-            <AdminCollabs collabs={collabs} onOpen={setViewing} onNew={() => setEditing('new')} />
-          )
+        {!data ? (
+          <Spinner />
+        ) : tab === 'today' ? (
+          <Today
+            data={data}
+            onProfiles={() => {
+              setInfluencerTab('pending')
+              changeTab('influencers')
+            }}
+            onQueue={setQueueKind}
+            onOpenCollab={setViewing}
+            onMoney={() => changeTab('brands')}
+          />
+        ) : tab === 'collabs' ? (
+          <AdminCollabs collabs={data.collabs} brands={data.brands} finances={data.finances} onOpen={setViewing} onNew={() => setEditing('new')} />
+        ) : tab === 'brands' ? (
+          <Brands data={data} onOpen={(b) => setBrandId(b.id)} onNew={() => setEditingBrand('new')} />
         ) : tab === 'influencers' ? (
-          <Influencers />
+          <Influencers key={influencerTab} initialTab={influencerTab} onChanged={reload} />
         ) : (
           <Account profile={profile} onProfile={onProfile} />
         )}
@@ -211,29 +242,59 @@ function AdminApp({ profile, onProfile }: { profile: Profile; onProfile: (p: Pro
 
       <TabBar
         tabs={[
+          ['today', 'today', 'Today'],
           ['collabs', 'gift', 'Collabs'],
-          ['influencers', 'people', 'Influencers'],
+          ['brands', 'store', 'Brands'],
+          ['influencers', 'people', 'Creators'],
           ['profile', 'person', 'Account'],
         ]}
         active={tab}
-        onChange={(t) => setTab(t as AdminTab)}
+        onChange={(t) => changeTab(t as AdminTab)}
       />
 
-      {viewing && !editing && (
-        <Applicants
-          collab={viewing}
-          onClose={() => setViewing(null)}
-          onEdit={() => setEditing(viewing)}
+      {data && queueKind && <Queue kind={queueKind} applications={data.applications} onOpenCollab={setViewing} onClose={() => setQueueKind(null)} />}
+      {data && brand && (
+        <BrandPage
+          brand={brand}
+          data={data}
+          onClose={() => setBrandId(null)}
+          onEdit={() => setEditingBrand(brand)}
+          onOpenCollab={setViewing}
+          onNewCollab={() => {
+            setNewCollabBrand(brand.id)
+            setEditing('new')
+          }}
           onChanged={reload}
         />
       )}
-      {editing && (
+      {viewing && !editing && (
+        <Applicants collab={current(viewing)!} onClose={() => setViewing(null)} onEdit={() => setEditing(current(viewing))} onChanged={reload} />
+      )}
+      {data && editing && (
         <CollabForm
           collab={editing === 'new' ? undefined : editing}
-          onClose={() => setEditing(null)}
+          brands={data.brands}
+          finance={editing === 'new' ? undefined : data.finances[editing.id]}
+          brandId={editing === 'new' ? newCollabBrand : undefined}
+          onClose={() => {
+            setEditing(null)
+            setNewCollabBrand(undefined)
+          }}
           onSaved={() => {
             setEditing(null)
+            setNewCollabBrand(undefined)
             setViewing(null)
+            reload()
+          }}
+        />
+      )}
+      {editingBrand && (
+        <BrandForm
+          brand={editingBrand === 'new' ? undefined : editingBrand}
+          onClose={() => setEditingBrand(null)}
+          onSaved={(b) => {
+            setEditingBrand(null)
+            setBrandId(b.id)
             reload()
           }}
         />

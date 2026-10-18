@@ -1,4 +1,22 @@
-import type { Application, ApplicationStatus, Booking, BrandReport, Collab, CollabInput, DeliveryStats, Profile, ProfileInput, ProfileStatus, Role } from '../types'
+import type {
+  Application,
+  ApplicationStatus,
+  Booking,
+  Brand,
+  BrandInput,
+  BrandReport,
+  Collab,
+  CollabFinance,
+  CollabInput,
+  DeliveryStats,
+  FinanceInput,
+  PaymentStatus,
+  Profile,
+  ProfileInput,
+  ProfileStatus,
+  RetainerPayment,
+  Role,
+} from '../types'
 
 export interface Api {
   mode: 'demo' | 'live'
@@ -45,6 +63,16 @@ export interface Api {
   setAttendance(applicationId: string, attendance: 'attended' | 'no_show' | null): Promise<void>
   getReliability(): Promise<Record<string, DeliveryStats>> // by influencer id
   getReportToken(collabId: string): Promise<string> // creates the collab's private report link if needed
+
+  listAllApplications(): Promise<Application[]> // every application, with its collab and creator
+
+  // Admin: brands and money (never visible to creators)
+  listBrands(): Promise<Brand[]>
+  saveBrand(input: BrandInput, id?: string): Promise<Brand>
+  listFinances(): Promise<Record<string, CollabFinance>> // by collab id
+  saveFinance(collabId: string, input: FinanceInput): Promise<void>
+  listRetainerPayments(): Promise<RetainerPayment[]>
+  saveRetainerPayment(brandId: string, month: string, amount: number, status: PaymentStatus, invoicedOn: string | null): Promise<void>
 
   // Brand report: works without signing in
   getReport(token: string): Promise<BrandReport | null>

@@ -1,10 +1,10 @@
 import { deliveryStatus } from '../delivery'
-import type { Application, BrandReport, Collab, DeliveryStats, Profile } from '../types'
+import type { Application, Brand, BrandReport, Collab, CollabFinance, DeliveryStats, PaymentStatus, Profile, RetainerPayment } from '../types'
 import type { Api } from './types'
 
 // Demo mode keeps everything in this browser/device so the app can be tried
 // before a Supabase project is connected.
-const KEY = 'demo.v4'
+const KEY = 'demo.v5'
 
 interface DemoState {
   userId: string | null
@@ -12,13 +12,23 @@ interface DemoState {
   collabs: Collab[]
   applications: Application[]
   reportLinks: Record<string, string> // collab id → token
+  brands: Brand[]
+  finances: Record<string, CollabFinance> // by collab id
+  retainerPayments: RetainerPayment[]
 }
 
 const now = () => new Date().toISOString()
 const inDays = (n: number) => {
   const d = new Date()
   d.setDate(d.getDate() + n)
-  return d.toISOString().slice(0, 10)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+// First day of the month, n months ago (YYYY-MM-01).
+const monthsAgo = (n: number) => {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - n)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 }
 const at = (days: number, hour: number) => {
   const d = new Date()
@@ -33,16 +43,17 @@ function seed(): DemoState {
     instagram: '',
     tiktok: '',
     followers: 0,
-    city: 'London',
+    city: 'Manchester',
     bio: '',
     role: 'influencer',
     status: 'approved',
     created_at: now(),
     ...p,
   })
-  const collab = (c: Partial<Collab> & Pick<Collab, 'id' | 'title' | 'brand' | 'category' | 'type'>): Collab => ({
+  const collab = (c: Partial<Collab> & Pick<Collab, 'id' | 'title' | 'brand_id' | 'category' | 'type'>): Collab => ({
+    brand: brands.find((b) => b.id === c.brand_id)!.name,
     description: '',
-    city: 'London',
+    city: 'Manchester',
     location: '',
     image_url: '',
     offer: '',
@@ -56,7 +67,6 @@ function seed(): DemoState {
     created_at: now(),
     ...c,
   })
-
   const app = (a: Partial<Application> & Pick<Application, 'id' | 'collab_id' | 'user_id'>): Application => ({
     message: '',
     preferred_date: null,
@@ -71,131 +81,95 @@ function seed(): DemoState {
     created_at: now(),
     ...a,
   })
+  const brand = (b: Partial<Brand> & Pick<Brand, 'id' | 'name' | 'deal_type'>): Brand => ({
+    instagram: '',
+    contact_name: '',
+    email: '',
+    phone: '',
+    area: '',
+    monthly_fee: null,
+    retainer_start: null,
+    notes: '',
+    created_at: now(),
+    ...b,
+  })
+
+  // Fictional Manchester brands (phone numbers are from Ofcom's range reserved for drama).
+  const brands: Brand[] = [
+    brand({ id: 'b1', name: 'Sayonara', deal_type: 'retainer', monthly_fee: 350, retainer_start: monthsAgo(3), instagram: 'sayonaramcr', contact_name: 'Kenji Watanabe', email: 'kenji@sayonara.example', phone: '0161 496 0142', area: 'Spinningfields, Manchester', notes: 'Monthly retainer: 3 creators a month. Prefers evening sittings, Tue–Thu.' }),
+    brand({ id: 'b2', name: 'Jardim', deal_type: 'paid', instagram: 'jardim.mcr', contact_name: 'Sofia Almeida', email: 'sofia@jardim.example', phone: '0161 496 0277', area: 'Ancoats, Manchester', notes: '£350 per campaign. Invoice on completion.' }),
+    brand({ id: 'b3', name: 'Mill & Ember', deal_type: 'paid', instagram: 'millandember', contact_name: 'Tom Hargreaves', email: 'tom@millandember.example', phone: '0161 496 0318', area: 'Ancoats, Manchester', notes: 'Wood-fired kitchen. Wants Reels over static posts.' }),
+    brand({ id: 'b4', name: 'Northern Thread', deal_type: 'paid', instagram: 'northernthread', contact_name: 'Ella Brooks', email: 'ella@northernthread.example', phone: '0161 496 0455', area: 'Northern Quarter, Manchester', notes: 'Invoice raised before the launch. Chase accounts if unpaid.' }),
+    brand({ id: 'b5', name: 'Velvet Room Spa', deal_type: 'gifted', instagram: 'velvetroomspa', contact_name: 'Hannah Clarke', email: 'hannah@velvetroom.example', phone: '0161 496 0563', area: 'Spinningfields, Manchester' }),
+    brand({ id: 'b6', name: 'Copper Pot Bakery', deal_type: 'gifted', instagram: 'copperpotbakes', contact_name: 'Raj Patel', email: 'raj@copperpot.example', phone: '0161 496 0691', area: 'Didsbury, Manchester', notes: 'Walk-ins any day before 2pm.' }),
+    brand({ id: 'b7', name: 'Haven Wellness', deal_type: 'retainer', monthly_fee: 250, retainer_start: monthsAgo(1), instagram: 'havenwellnessaltrincham', contact_name: 'Grace Doyle', email: 'grace@havenwellness.example', phone: '0161 496 0734', area: 'Altrincham' }),
+  ]
+
+  const collabs: Collab[] = [
+    collab({ id: 'c1', title: 'Wood-fired supper for two', brand_id: 'b3', category: 'Food & Drink', type: 'Booking', location: 'Ancoats', description: 'Six plates from the fire, cooked at the counter. Bring a friend.', offer: 'Supper for two with a drink each (up to £90)', deliverables: '1 Instagram Reel + 3 stories tagging @millandember', min_followers: 5000, spots: 8 }),
+    collab({ id: 'c2', title: 'Signature facial', brand_id: 'b5', category: 'Beauty', type: 'Booking', location: 'Spinningfields', description: 'Our 60-minute signature glow facial with a skin consultation.', offer: '60-minute facial worth £145', deliverables: '1 TikTok or Reel + 2 stories', min_followers: 10000, spots: 4 }),
+    collab({ id: 'c3', title: 'AW collection launch party', brand_id: 'b4', category: 'Fashion', type: 'Event', location: 'Northern Quarter', description: 'Preview the AW collection with drinks, DJ and styling sessions.', offer: 'Entry, drinks and a gifted piece from the collection', deliverables: '3 stories on the night + 1 feed post within a week', min_followers: 15000, spots: 20, event_date: inDays(10) }),
+    collab({ id: 'c4', title: 'Coffee & pastry on us', brand_id: 'b6', category: 'Food & Drink', type: 'Walk-in', location: 'Didsbury Village', description: 'Pop in whenever suits you and try the autumn bakes.', offer: 'Any drink and pastry', deliverables: '2 stories tagging @copperpotbakes', min_followers: 2000, spots: 30 }),
+    collab({ id: 'c5', title: 'Sound bath & spa day', brand_id: 'b7', category: 'Wellness', type: 'Booking', location: 'Altrincham', description: 'Full spa access plus a 45-minute group sound bath.', offer: 'Day pass worth £95', deliverables: '1 Reel + 3 stories', min_followers: 7500, spots: 6 }),
+    collab({ id: 'c6', title: 'Omakase tasting menu', brand_id: 'b1', category: 'Food & Drink', type: 'Event', location: 'Spinningfields', description: 'Twelve-course omakase evening at the chef’s counter.', offer: 'Omakase for one with sake pairing', deliverables: '1 Reel + 3 stories tagging @sayonaramcr', min_followers: 10000, spots: 3, event_date: inDays(-14), apply_by: inDays(-20), status: 'closed' }),
+    collab({ id: 'c7', title: 'Courtyard lunch', brand_id: 'b2', category: 'Food & Drink', type: 'Booking', location: 'Ancoats', description: 'Long lunch in the courtyard garden.', offer: 'Lunch for two (up to £120)', deliverables: '1 Reel or TikTok + 2 stories tagging @jardim.mcr', min_followers: 8000, spots: 3, apply_by: inDays(-10), status: 'closed' }),
+    collab({ id: 'c8', title: 'Sunday roast for two', brand_id: 'b2', category: 'Food & Drink', type: 'Booking', location: 'Ancoats', description: 'Our Sunday roast with all the trimmings.', offer: 'Roast for two with a bottle of wine', deliverables: '1 Reel + 2 stories tagging @jardim.mcr', min_followers: 8000, spots: 4 }),
+  ]
 
   return {
     userId: null,
     profiles: [
       profile({ id: 'demo-admin', full_name: 'The Social Atelier', role: 'admin' }),
-      profile({ id: 'demo-influencer', full_name: 'Maya Collins', instagram: 'mayaeats', tiktok: 'mayaeats', followers: 24500, bio: 'London food & lifestyle. Brunch enthusiast.' }),
+      profile({ id: 'demo-influencer', full_name: 'Maya Collins', instagram: 'mayaeats', tiktok: 'mayaeats', followers: 24500, bio: 'Manchester food & lifestyle. Brunch enthusiast.' }),
       profile({ id: 'demo-2', full_name: 'Jordan Reid', instagram: 'jordanstyle', followers: 61200, bio: 'Menswear and travel.' }),
-      profile({ id: 'demo-3', full_name: 'Priya Shah', instagram: 'priyaglow', tiktok: 'priyaglow', followers: 8900, status: 'pending', bio: 'Skincare reviews and GRWM.' }),
-      profile({ id: 'demo-4', full_name: 'Amara Okafor', instagram: 'amaraeatslondon', followers: 18300, bio: 'Restaurants and rooftops.' }),
-      profile({ id: 'demo-5', full_name: 'Leo Martin', tiktok: 'leomartin', followers: 33100, bio: 'Food TikToks, mostly ramen.' }),
+      profile({ id: 'demo-3', full_name: 'Priya Shah', instagram: 'priyaglow', tiktok: 'priyaglow', followers: 8900, status: 'pending', city: 'Salford', bio: 'Skincare reviews and GRWM.' }),
+      profile({ id: 'demo-4', full_name: 'Amara Okafor', instagram: 'amaraeatsmcr', followers: 18300, bio: 'Restaurants and rooftops.' }),
+      profile({ id: 'demo-5', full_name: 'Leo Martin', tiktok: 'leomartin', followers: 33100, city: 'Stockport', bio: 'Food TikToks, mostly ramen.' }),
     ],
-    collabs: [
-      collab({
-        id: 'c1',
-        title: 'Brunch for two',
-        brand: 'The Garden Kitchen',
-        category: 'Food & Drink',
-        type: 'Booking',
-        location: 'Shoreditch, E1',
-        description: 'Seasonal brunch menu in our plant-filled dining room. Bring a friend!',
-        offer: 'Brunch for two with a drink each (up to £80)',
-        deliverables: '1 Instagram Reel + 3 stories tagging @thegardenkitchen',
-        min_followers: 5000,
-        spots: 8,
-      }),
-      collab({
-        id: 'c2',
-        title: 'Signature facial',
-        brand: 'Lumière Skin Studio',
-        category: 'Beauty',
-        type: 'Booking',
-        location: 'Marylebone, W1',
-        description: 'Our 60-minute signature glow facial with a skin consultation.',
-        offer: '60-minute facial worth £145',
-        deliverables: '1 TikTok or Reel + 2 stories',
-        min_followers: 10000,
-        spots: 4,
-      }),
-      collab({
-        id: 'c3',
-        title: 'Autumn collection launch party',
-        brand: 'Atelier Nord',
-        category: 'Fashion',
-        type: 'Event',
-        location: 'Covent Garden, WC2',
-        description: 'Preview the AW collection with drinks, DJ and styling sessions.',
-        offer: 'Entry, drinks and a gifted piece from the collection',
-        deliverables: '3 stories on the night + 1 feed post within a week',
-        min_followers: 15000,
-        spots: 20,
-        event_date: inDays(10),
-      }),
-      collab({
-        id: 'c4',
-        title: 'Coffee & pastry on us',
-        brand: 'Grind & Co',
-        category: 'Food & Drink',
-        type: 'Walk-in',
-        location: 'Any London branch',
-        description: 'Pop in whenever suits you and try our new seasonal menu.',
-        offer: 'Any drink and pastry',
-        deliverables: '2 stories tagging @grindandco',
-        min_followers: 2000,
-        spots: 30,
-      }),
-      collab({
-        id: 'c6',
-        title: 'Omakase tasting menu',
-        brand: 'Sayonara',
-        category: 'Food & Drink',
-        type: 'Event',
-        location: 'Soho, W1',
-        description: 'Twelve-course omakase evening at the chef’s counter.',
-        offer: 'Omakase for one with sake pairing',
-        deliverables: '1 Reel + 3 stories tagging @sayonara',
-        min_followers: 10000,
-        spots: 3,
-        event_date: inDays(-14),
-        apply_by: inDays(-20),
-        status: 'closed',
-      }),
-      collab({
-        id: 'c7',
-        title: 'Garden lunch',
-        brand: 'Jardim',
-        category: 'Food & Drink',
-        type: 'Booking',
-        location: 'Notting Hill, W11',
-        description: 'Long lunch in the courtyard garden.',
-        offer: 'Lunch for two (up to £120)',
-        deliverables: '1 Reel or TikTok + 2 stories tagging @jardim',
-        min_followers: 8000,
-        spots: 3,
-        apply_by: inDays(-10),
-        status: 'closed',
-      }),
-      collab({
-        id: 'c5',
-        title: 'Sound bath & spa day',
-        brand: 'Haven Wellness',
-        category: 'Wellness',
-        type: 'Booking',
-        city: 'Manchester',
-        location: 'Northern Quarter',
-        description: 'Full spa access plus a 45-minute group sound bath.',
-        offer: 'Day pass worth £95',
-        deliverables: '1 Reel + 3 stories',
-        min_followers: 7500,
-        spots: 6,
-      }),
-    ],
+    collabs,
     applications: [
       app({ id: 'a1', collab_id: 'c3', user_id: 'demo-influencer', message: 'Would love to cover the launch!', status: 'accepted', seen: false, scheduled_start: at(10, 19), scheduled_end: at(10, 22), content_due: inDays(17) }),
-      app({ id: 'a2', collab_id: 'c1', user_id: 'demo-2', message: 'Brunch fan here, happy to do a Reel.', preferred_date: inDays(5) }),
+      // Waiting for a decision
+      app({ id: 'a2', collab_id: 'c1', user_id: 'demo-2', message: 'Fire cooking is my kind of content. Happy to do a Reel.', preferred_date: inDays(5) }),
+      app({ id: 'a9', collab_id: 'c2', user_id: 'demo-4', message: 'I’d film a full GRWM before and after.', preferred_date: inDays(8) }),
+      app({ id: 'a14', collab_id: 'c8', user_id: 'demo-5', message: 'Roast TikToks do numbers for me.', preferred_date: inDays(7) }),
+      // Booked this week
+      app({ id: 'a12', collab_id: 'c2', user_id: 'demo-2', status: 'accepted', scheduled_start: at(1, 15), scheduled_end: at(1, 16), content_due: inDays(8) }),
+      app({ id: 'a10', collab_id: 'c5', user_id: 'demo-4', status: 'accepted', scheduled_start: at(2, 11), scheduled_end: at(2, 15), content_due: inDays(9) }),
+      app({ id: 'a11', collab_id: 'c1', user_id: 'demo-influencer', status: 'accepted', scheduled_start: at(4, 19), scheduled_end: at(4, 21), content_due: inDays(11) }),
+      app({ id: 'a13', collab_id: 'c4', user_id: 'demo-influencer', status: 'accepted', content_due: inDays(3) }),
       // Sayonara, two weeks ago: one on time, one late, one no-show
       app({ id: 'a3', collab_id: 'c6', user_id: 'demo-influencer', status: 'accepted', scheduled_start: at(-14, 19), scheduled_end: at(-14, 21), content_due: inDays(-7), attendance: 'attended', post_links: ['https://www.instagram.com/reel/C9sayonara1/', 'https://www.tiktok.com/@mayaeats/video/7400000000000000001'], posted_at: at(-12, 18) }),
       app({ id: 'a4', collab_id: 'c6', user_id: 'demo-2', status: 'accepted', scheduled_start: at(-14, 19), scheduled_end: at(-14, 21), content_due: inDays(-7), attendance: 'attended', post_links: ['https://www.instagram.com/p/C9jordanomakase/'], posted_at: at(-5, 12) }),
       app({ id: 'a5', collab_id: 'c6', user_id: 'demo-4', status: 'accepted', scheduled_start: at(-14, 19), scheduled_end: at(-14, 21), content_due: inDays(-7), attendance: 'no_show' }),
-      // Jardim, last week: one posted, one still to post (overdue), one due tomorrow
+      // Jardim, last week: one posted, one overdue, one due tomorrow
       app({ id: 'a6', collab_id: 'c7', user_id: 'demo-influencer', status: 'accepted', scheduled_start: at(-6, 13), scheduled_end: at(-6, 15), content_due: inDays(1), attendance: 'attended', post_links: ['https://www.instagram.com/reel/C9jardimmaya/'], posted_at: at(-4, 9) }),
       app({ id: 'a7', collab_id: 'c7', user_id: 'demo-5', status: 'accepted', scheduled_start: at(-9, 13), scheduled_end: at(-9, 15), content_due: inDays(-2), attendance: 'attended' }),
       app({ id: 'a8', collab_id: 'c7', user_id: 'demo-2', status: 'accepted', scheduled_start: at(-6, 15), scheduled_end: at(-6, 17), content_due: inDays(1) }),
     ],
     reportLinks: {},
+    brands,
+    finances: {
+      c1: { collab_id: 'c1', fee: 350, payment_status: 'invoiced', invoiced_on: inDays(-12), paid_on: null },
+      c3: { collab_id: 'c3', fee: 500, payment_status: 'invoiced', invoiced_on: inDays(-41), paid_on: null },
+      c7: { collab_id: 'c7', fee: 350, payment_status: 'paid', invoiced_on: inDays(-8), paid_on: inDays(0) },
+      c8: { collab_id: 'c8', fee: 350, payment_status: 'unpaid', invoiced_on: null, paid_on: null },
+    },
+    retainerPayments: [
+      { id: 'r1', brand_id: 'b1', month: monthsAgo(3), amount: 350, status: 'paid', invoiced_on: inDays(-95), paid_on: inDays(-80) },
+      { id: 'r2', brand_id: 'b1', month: monthsAgo(2), amount: 350, status: 'paid', invoiced_on: inDays(-64), paid_on: inDays(-50) },
+      { id: 'r3', brand_id: 'b1', month: monthsAgo(1), amount: 350, status: 'invoiced', invoiced_on: inDays(-35), paid_on: null },
+      { id: 'r4', brand_id: 'b7', month: monthsAgo(1), amount: 250, status: 'paid', invoiced_on: inDays(-20), paid_on: inDays(0) },
+    ],
   }
+}
+
+// Mirrors the database trigger: invoicing and paying stamp today unless a date is given.
+function paymentDates(status: PaymentStatus, invoicedOn: string | null, paidOn: string | null) {
+  const today = inDays(0)
+  if (status === 'unpaid') return { invoiced_on: null, paid_on: null }
+  if (status === 'invoiced') return { invoiced_on: invoicedOn ?? today, paid_on: null }
+  return { invoiced_on: invoicedOn, paid_on: paidOn ?? today }
 }
 
 function load(): DemoState {
@@ -272,7 +246,10 @@ export function createDemoApi(): Api {
       return state.collabs.map((c) => ({ ...c, application_count: state.applications.filter((a) => a.collab_id === c.id && a.status !== 'withdrawn').length }))
     },
     async saveCollab(input, id) {
-      const collab: Collab = id ? { ...state.collabs.find((c) => c.id === id)!, ...input } : { ...input, id: crypto.randomUUID(), created_at: now() }
+      // Mirrors the database: the brand name follows the chosen brand record.
+      const brandName = state.brands.find((b) => b.id === input.brand_id)?.name ?? input.brand
+      const fields = { ...input, brand: brandName }
+      const collab: Collab = id ? { ...state.collabs.find((c) => c.id === id)!, ...fields } : { ...fields, id: crypto.randomUUID(), created_at: now() }
       state.collabs = id ? state.collabs.map((c) => (c.id === id ? collab : c)) : [collab, ...state.collabs]
       persist()
       return collab
@@ -372,6 +349,48 @@ export function createDemoApi(): Api {
       }
       return stats
     },
+    async listAllApplications() {
+      await tick()
+      return state.applications.map((a) => ({
+        ...a,
+        collab: state.collabs.find((c) => c.id === a.collab_id),
+        profile: state.profiles.find((p) => p.id === a.user_id),
+      }))
+    },
+
+    async listBrands() {
+      await tick()
+      return [...state.brands].sort((a, b) => a.name.localeCompare(b.name))
+    },
+    async saveBrand(input, id) {
+      const name = input.name.trim()
+      if (state.brands.some((b) => b.id !== id && b.name.toLowerCase() === name.toLowerCase())) throw new Error('A brand with that name already exists.')
+      const brand: Brand = id ? { ...state.brands.find((b) => b.id === id)!, ...input, name } : { ...input, name, id: crypto.randomUUID(), created_at: now() }
+      state.brands = id ? state.brands.map((b) => (b.id === id ? brand : b)) : [...state.brands, brand]
+      // Renaming a brand renames its collabs, as the database trigger does.
+      state.collabs = state.collabs.map((c) => (c.brand_id === brand.id ? { ...c, brand: brand.name } : c))
+      persist()
+      return brand
+    },
+    async listFinances() {
+      await tick()
+      return { ...state.finances }
+    },
+    async saveFinance(collabId, input) {
+      state.finances[collabId] = { collab_id: collabId, ...input, ...paymentDates(input.payment_status, input.invoiced_on, input.paid_on) }
+      persist()
+    },
+    async listRetainerPayments() {
+      await tick()
+      return [...state.retainerPayments]
+    },
+    async saveRetainerPayment(brandId, month, amount, status, invoicedOn) {
+      const existing = state.retainerPayments.find((p) => p.brand_id === brandId && p.month === month)
+      const payment: RetainerPayment = { id: existing?.id ?? crypto.randomUUID(), brand_id: brandId, month, amount, status, ...paymentDates(status, invoicedOn ?? existing?.invoiced_on ?? null, null) }
+      state.retainerPayments = existing ? state.retainerPayments.map((p) => (p === existing ? payment : p)) : [...state.retainerPayments, payment]
+      persist()
+    },
+
     async getReportToken(collabId) {
       state.reportLinks[collabId] ??= crypto.randomUUID()
       persist()

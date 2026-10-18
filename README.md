@@ -28,7 +28,7 @@ Until Supabase is connected, the app runs in **demo mode** with sample collabs a
 ## Connecting Supabase (do this first)
 
 1. Create a free account and a new project at [supabase.com](https://supabase.com). Pick a London (eu-west-2) region.
-2. Open **SQL Editor → New query**, paste in all of [`supabase/schema.sql`](supabase/schema.sql), and click **Run**.
+2. Open **SQL Editor → New query**, paste in all of [`supabase/schema.sql`](supabase/schema.sql), and click **Run**. Then do the same with each file in [`supabase/migrations`](supabase/migrations), oldest first. Migrations are safe to run more than once.
 3. Under **Project Settings → API**, copy the **Project URL** and the **anon public** key.
 4. In GitHub, go to **Settings → Secrets and variables → Actions** and add:
    - `SUPABASE_URL`: the Project URL
@@ -41,6 +41,19 @@ Until Supabase is connected, the app runs in **demo mode** with sample collabs a
    where email = 'you@example.com';
    ```
    Sign out and back in, and you'll see the admin tabs. Repeat for any team member.
+
+## Admin: Today, brands and money
+
+**Today** is the first admin screen. Tappable cards show profiles to review, applications waiting, content overdue, content due this week and bookings in the next 7 days. Each opens the matching filtered list, and from there the collab's applicants. Below the cards are the money summary and this week's bookings by day. When nothing needs doing it says "All caught up".
+
+**Brands** keeps a record per client: Instagram, contact, email, phone, area, deal type (gifted, paid or retainer) and notes. A brand's page shows its contact details, money, retainer months and every collab with its delivery counts and a **Share report** button. When you create or edit a collab you pick the brand from a list, with **+ New brand** at the bottom. Renaming a brand renames its collabs.
+
+**Money**, all admin-only:
+- **Paid collabs:** give a collab a fee (£), a payment status (unpaid, invoiced or paid) and the dates. Leave the fee blank for gifted collabs.
+- **Retainer brands:** have a monthly fee. Each month since the retainer started is listed on the brand page with its own unpaid, invoiced or paid status.
+- **Totals:** Today and each brand page show paid this month, outstanding (unpaid or invoiced) and overdue (invoiced more than 30 days ago). Unpaid and overdue amounts appear in red.
+
+Creators never see fees, payment status or brand contact details. These live in admin-only tables, and creators only see a collab's brand name.
 
 ## Content delivery, brand reports and reliability
 

@@ -1,7 +1,16 @@
-import type { Collab } from '../../types'
+import type { Brand, Collab, CollabFinance } from '../../types'
 import { Badge, CollabCard, Empty } from '../../ui'
+import { CollabFee } from './Money'
 
-export default function AdminCollabs({ collabs, onOpen, onNew }: { collabs: Collab[]; onOpen: (c: Collab) => void; onNew: () => void }) {
+interface Props {
+  collabs: Collab[]
+  brands: Brand[]
+  finances: Record<string, CollabFinance>
+  onOpen: (c: Collab) => void
+  onNew: () => void
+}
+
+export default function AdminCollabs({ collabs, brands, finances, onOpen, onNew }: Props) {
   return (
     <>
       <header className="page-header with-action">
@@ -22,6 +31,7 @@ export default function AdminCollabs({ collabs, onOpen, onNew }: { collabs: Coll
               badge={
                 <span className="badges">
                   <span className="count">{c.application_count ?? 0} applied</span>
+                  <CollabFee finance={finances[c.id]} dealType={brands.find((b) => b.id === c.brand_id)?.deal_type} />
                   {c.status === 'closed' && <Badge status="closed" />}
                 </span>
               }
